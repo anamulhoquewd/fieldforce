@@ -1,4 +1,10 @@
-import { integer, pgTable, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  integer,
+  pgTable,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 export type User = {
   id: number;
@@ -14,7 +20,7 @@ export type Organizations = {
   ownerId: number;
   createdAt: Date;
   updatedAt: Date;
-}
+};
 export type Memberships = {
   id: number;
   userId: number;
@@ -23,7 +29,7 @@ export type Memberships = {
   joinedAt: Date;
   createdAt: Date;
   updatedAt: Date;
-}
+};
 export type Invitations = {
   id: number;
   organizationId: number;
@@ -32,7 +38,7 @@ export type Invitations = {
   status: "pending" | "accepted" | "declined";
   createdAt: Date;
   updatedAt: Date;
-}
+};
 export type Tasks = {
   id: number;
   organizationId: number;
@@ -46,7 +52,7 @@ export type Tasks = {
   deadline: Date | null;
   createdAt: Date;
   updatedAt: Date;
-}
+};
 export type Locations = {
   id: number;
   userId: number;
@@ -56,7 +62,7 @@ export type Locations = {
   recordedAt: Date;
   createdAt: Date;
   updatedAt: Date;
-}
+};
 export type Messages = {
   id: number;
   organizationId: number;
@@ -66,48 +72,48 @@ export type Messages = {
   readAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-}
+};
 
-export const UsersTable = pgTable("users", {
+export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   password: varchar("password", { length: 255 }).notNull(),
-  createdAt: integer("created_at").notNull().default(0),
-  updatedAt: integer("updated_at").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const OrganizationsTable = pgTable("organizations", {
+export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
   ownerId: uuid("owner_id").notNull(),
-  createdAt: integer("created_at").notNull().default(0),
-  updatedAt: integer("updated_at").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const MembershipsTable = pgTable("memberships", {
+export const memberships = pgTable("memberships", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
   organizationId: uuid("organization_id").notNull(),
   role: varchar("role", { length: 50 }).notNull(),
-  joinedAt: integer("joined_at").notNull().default(0),
-  createdAt: integer("created_at").notNull().default(0),
-  updatedAt: integer("updated_at").notNull().default(0),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const InvitationsTable = pgTable("invitations", {
+export const invitations = pgTable("invitations", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),  
+  organizationId: uuid("organization_id").notNull(),
   email: varchar("email", { length: 255 }).notNull(),
   token: varchar("token", { length: 255 }).notNull(),
   status: varchar("status", { length: 50 }).notNull(),
-  createdAt: integer("created_at").notNull().default(0),
-  updatedAt: integer("updated_at").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const TasksTable = pgTable("tasks", {
+export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),  
+  organizationId: uuid("organization_id").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: varchar("description", { length: 1000 }).notNull(),
   creatorId: uuid("creator_id").notNull(),
@@ -116,29 +122,28 @@ export const TasksTable = pgTable("tasks", {
   latitude: integer("latitude"),
   longitude: integer("longitude"),
   deadline: integer("deadline"),
-  createdAt: integer("created_at").notNull().default(0),
-  updatedAt: integer("updated_at").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const LocationsTable = pgTable("locations", {
+export const locations = pgTable("locations", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),  
+  userId: uuid("user_id").notNull(),
   organizationId: uuid("organization_id").notNull(),
   latitude: integer("latitude").notNull(),
   longitude: integer("longitude").notNull(),
-  recordedAt: integer("recorded_at").notNull(),
-  createdAt: integer("created_at").notNull().default(0),
-  updatedAt: integer("updated_at").notNull().default(0),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const MessagesTable = pgTable("messages", {
+export const messages = pgTable("messages", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull(),
   senderId: uuid("sender_id").notNull(),
   receiverId: uuid("receiver_id").notNull(),
   content: varchar("content", { length: 1000 }).notNull(),
-  readAt: integer("read_at"),
-  createdAt: integer("created_at").notNull().default(0),
-  updatedAt: integer("updated_at").notNull().default(0),
-}); 
-
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

@@ -1,23 +1,22 @@
 import { redis } from "./redis.js";
+import { createSession, getSession, deleteSession } from "./session.js";
 
 async function main() {
-  // ১. ping — server জীবিত কিনা
-  const pong = await redis.ping();
-  console.log("PING →", pong); // "PONG" আসা উচিত
+  const sessionId = await createSession({
+    userId: "user123",
+    organizationId: "org456",
+    role: "manager",
+  });
 
-  // ২. set — একটা মান রাখো
-  await redis.set("hello", "FieldForce");
-  console.log("SET hello = FieldForce");
+  console.log("set sessionId ✓", sessionId);
 
-  // ৩. get — ফেরত আনো
-  const value = await redis.get("hello");
-  console.log("GET hello →", value); // "FieldForce" আসা উচিত
+  const value = await getSession(sessionId);
+  console.log("GET sessionId →", value);
 
-  // ৪. delete — মুছে ফেলো
-  await redis.del("hello");
-  console.log("DEL hello ✓");
+  await deleteSession(sessionId);
+  console.log("DEL sessionId ✓");
 
-  await redis.quit(); // সংযোগ বন্ধ করো, নইলে script ঝুলে থাকবে
+  await redis.quit();
 }
 
 main().catch(console.error);
