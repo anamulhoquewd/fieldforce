@@ -11,6 +11,7 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Architecture Overview](#architecture-overview)
+- [Auth Strategy](#auth-strategy)
 - [Database Schema](#database-schema)
 - [API Endpoints](#api-endpoints)
 - [Environment Variables](#environment-variables)
@@ -33,7 +34,8 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 | Backend Runtime | Node.js via `@hono/node-server` | 1.19.14 | Node adapter for Hono |
 | Database | PostgreSQL (Neon serverless) | — | Primary persistent storage |
 | ORM | Drizzle ORM | 0.45.2 | Type-safe DB queries & migrations |
-| Cache / Pub-Sub | Redis (Upstash) via ioredis | 5.11.1 | Session caching, real-time pub/sub |
+| Cache / Session | Redis (Upstash) via ioredis | 5.11.1 | Session store, real-time pub/sub |
+| Password Hashing | bcrypt | — | Secure password hashing |
 | Real-time | Socket.IO | — | Live location updates, chat (planned) |
 | Maps | Google Maps JavaScript API | — | Interactive map with markers (planned) |
 | File Storage | Cloudflare R2 | — | User uploads (planned) |
@@ -77,33 +79,34 @@ fieldforce/
 │
 ├── server/                        # Hono REST API server
 │   ├── src/
-│   │   ├── index.ts               # [PARTIAL] App entry, health check endpoint
+│   │   ├── index.ts               # [DONE] App entry — health check + auth route
 │   │   ├── db/
-│   │   │   ├── schema.ts          # [DONE] Drizzle schema — 8 tables
-│   │   │   └── index.ts           # [STUB] DB instance exports
+│   │   │   ├── schema.ts          # [DONE] Drizzle schema — 7 tables
+│   │   │   └── index.ts           # [DONE] PostgreSQL pool + Drizzle db instance
 │   │   ├── lib/
 │   │   │   ├── redis.ts           # [DONE] Redis client singleton
 │   │   │   ├── redis-test.ts      # [DONE] Redis connectivity test script
-│   │   │   └── auth-utils.ts      # [STUB] JWT/password utilities
+│   │   │   ├── auth.ts            # [DONE] bcrypt hash, compare, token generator
+│   │   │   └── session.ts         # [DONE] Redis session create / get / delete
 │   │   ├── middleware/
-│   │   │   ├── auth.ts            # [STUB] JWT auth middleware
+│   │   │   ├── auth.ts            # [DONE] Session cookie auth middleware
 │   │   │   └── requireRole.ts     # [STUB] Role-based access middleware
 │   │   ├── routes/
-│   │   │   ├── auth.ts            # [STUB] /api/v1/auth/*
+│   │   │   ├── auth.ts            # [DONE] /api/v1/auth/* (signup, signin, signout, me)
 │   │   │   ├── invitations.ts     # [STUB] /api/v1/invitations/*
 │   │   │   ├── locations.ts       # [STUB] /api/v1/locations/*
 │   │   │   ├── messages.ts        # [STUB] /api/v1/messages/*
 │   │   │   └── tasks.ts           # [STUB] /api/v1/tasks/*
 │   │   ├── controllers/
-│   │   │   ├── index.ts           # [STUB] Controller re-exports
-│   │   │   ├── auth.ts            # [STUB] Auth HTTP handlers
+│   │   │   ├── index.ts           # [DONE] Controller re-exports
+│   │   │   ├── auth.ts            # [DONE] signup / signin / signout handlers
 │   │   │   ├── invitations.ts     # [STUB] Invitation HTTP handlers
 │   │   │   ├── locations.ts       # [STUB] Location HTTP handlers
 │   │   │   ├── messages.ts        # [STUB] Message HTTP handlers
 │   │   │   └── tasks.ts           # [STUB] Task HTTP handlers
 │   │   └── services/
-│   │       ├── index.ts           # [STUB] Service re-exports
-│   │       ├── auth.ts            # [STUB] Auth business logic
+│   │       ├── index.ts           # [DONE] Service re-exports
+│   │       ├── auth.ts            # [DONE] signupService, singinService
 │   │       ├── invitations.ts     # [STUB] Invitation business logic
 │   │       ├── locations.ts       # [STUB] Location business logic
 │   │       ├── messages.ts        # [STUB] Message business logic
@@ -126,74 +129,131 @@ fieldforce/
 ┌─────────────────────────────────────────────────────┐
 │                   Client (Next.js)                  │
 │  Login / Signup → Dashboard → Map / Tasks / Chat   │
-│                axios HTTP + Socket.IO               │
+│       axios HTTP (cookie-based) + Socket.IO         │
 └──────────────────┬──────────────────────────────────┘
                    │ REST (port 8000)
 ┌──────────────────▼──────────────────────────────────┐
 │              Server (Hono API)                      │
 │  /api/v1/auth  /tasks  /locations  /messages  ...  │
-│  Middleware: Auth (JWT) → requireRole (RBAC)        │
-│  Routes → Controllers → Services → DB/Redis         │
-└────────┬──────────────────┬───────────────────────── ┘
+│  Middleware: authMiddleware → requireRole (RBAC)    │
+│  Routes → Controllers → Services → DB / Redis       │
+└────────┬──────────────────┬─────────────────────────┘
          │                  │
-┌────────▼──────┐   ┌───────▼──────────────────┐
-│  PostgreSQL   │   │  Redis (Upstash)          │
-│  (Neon)       │   │  - Session cache          │
-│  Primary data │   │  - Pub/Sub for real-time  │
-└───────────────┘   └──────────────────────────┘
+┌────────▼──────┐   ┌───────▼──────────────────────────┐
+│  PostgreSQL   │   │  Redis (Upstash)                  │
+│  (Neon)       │   │  session:{id} → { userId, orgId,  │
+│  Primary data │   │    role }  TTL: 7 days            │
+└───────────────┘   └──────────────────────────────────┘
 ```
 
 ### Multi-Tenancy Model
 
-Every resource (Task, Location, Message, Invitation) belongs to an `Organization`. A `User` can be a member of multiple organizations through the `Memberships` table. The `role` field in Memberships controls what a user can do within each organization.
+Every resource (Task, Location, Message, Invitation) belongs to an `Organization`. A `User` can be a member of multiple organizations through the `Memberships` table. The `role` field controls what a user can do within each organization.
 
 ```
 User ──── Memberships ──── Organization
-           (role: manager | employee)
+           (role: manager | worker)
+```
+
+---
+
+## Auth Strategy
+
+FieldForce uses **Redis-backed session authentication** (not JWT tokens).
+
+### How it works
+
+```
+[POST /auth/signup or /auth/signin]
+        │
+        ▼
+  Validate input → hash password (bcrypt) → query DB
+        │
+        ▼
+  Create session in Redis:
+    Key:   session:{randomHex64}
+    Value: { userId, organizationId, role }
+    TTL:   7 days
+        │
+        ▼
+  Set signed HTTP-only cookie:
+    Name:     session
+    Value:    sessionId (signed with SESSION_SECRET)
+    maxAge:   7 days
+    httpOnly: true
+    sameSite: Lax
+    secure:   true (production only)
+        │
+        ▼
+  Return user + org info as JSON
+```
+
+### Protected routes
+
+```
+Request with cookie → authMiddleware
+        │
+        ▼
+  getSignedCookie(c, SESSION_SECRET, "session")
+        │
+        ▼
+  redis.get("session:{sessionId}") → parse SessionData
+        │
+  null? → 401 Unauthorized
+        │
+  found? → c.set("user", session) → next()
+```
+
+### Signout
+
+```
+[POST /auth/signout]
+  redis.del("session:{sessionId}")  ← invalidate server-side
+  deleteCookie(c, "session")        ← clear client cookie
 ```
 
 ---
 
 ## Database Schema
 
-All tables are defined in [server/src/db/schema.ts](server/src/db/schema.ts) using Drizzle ORM.
+All tables defined in [server/src/db/schema.ts](server/src/db/schema.ts). The DB instance is created in [server/src/db/index.ts](server/src/db/index.ts) using a `pg.Pool` and passed to Drizzle with the full schema for relational queries.
 
-### `users_table`
+### `users`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | Primary key, auto-generated |
 | `name` | VARCHAR(255) | Required |
 | `email` | VARCHAR(255) | Unique, required |
-| `password` | VARCHAR(255) | Hashed password |
-| `created_at` | INTEGER | Unix timestamp |
-| `updated_at` | INTEGER | Unix timestamp |
+| `password` | VARCHAR(255) | bcrypt hashed, required |
+| `created_at` | TIMESTAMP | Auto set on insert |
+| `updated_at` | TIMESTAMP | Auto set on insert |
 
-### `organizations_table`
+### `organizations`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | Primary key |
 | `name` | VARCHAR(255) | Organization name |
-| `owner_id` | UUID | FK → users.id (org creator) |
-| `created_at` | INTEGER | |
-| `updated_at` | INTEGER | |
+| `owner_id` | UUID | FK → users.id (creator / first manager) |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
-### `memberships_table`
+### `memberships`
 
-Links users to organizations with a role. A user can be in many organizations.
+Links users to organizations with a role. A user can belong to multiple orgs.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | Primary key |
 | `user_id` | UUID | FK → users.id |
 | `organization_id` | UUID | FK → organizations.id |
-| `role` | ENUM | `"manager"` or `"employee"` |
-| `joined_at` | INTEGER | |
-| `created_at` | INTEGER | |
-| `updated_at` | INTEGER | |
+| `role` | VARCHAR(50) | `"manager"` or `"worker"` |
+| `joined_at` | TIMESTAMP | |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
-### `invitations_table`
+### `invitations`
 
 Tracks email invitations to join an organization.
 
@@ -201,47 +261,47 @@ Tracks email invitations to join an organization.
 |---|---|---|
 | `id` | UUID | Primary key |
 | `organization_id` | UUID | FK → organizations.id |
-| `email` | VARCHAR(255) | Invitee email |
-| `token` | VARCHAR(255) | Secure random token sent via email |
-| `status` | ENUM | `"pending"` / `"accepted"` / `"declined"` |
-| `created_at` | INTEGER | |
-| `updated_at` | INTEGER | |
+| `email` | VARCHAR(255) | Invitee email address |
+| `token` | VARCHAR(255) | Secure random hex token (sent via email link) |
+| `status` | VARCHAR(50) | `"pending"` / `"accepted"` / `"declined"` |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
-### `tasks_table`
+### `tasks`
 
-Work items that managers create and assign to employees.
+Work items created by managers and assigned to field workers.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | Primary key |
 | `organization_id` | UUID | FK → organizations.id |
 | `title` | VARCHAR(255) | Task title |
-| `description` | VARCHAR(1000) | Detailed description (nullable) |
-| `creator_id` | UUID | FK → users.id (manager) |
-| `assigned_to` | UUID | FK → users.id (employee, nullable) |
-| `status` | ENUM | `"pending"` / `"in_progress"` / `"completed"` |
-| `latitude` | VARCHAR(255) | Task location lat (nullable) |
-| `longitude` | VARCHAR(255) | Task location lng (nullable) |
-| `deadline` | INTEGER | Unix timestamp (nullable) |
-| `created_at` | INTEGER | |
-| `updated_at` | INTEGER | |
+| `description` | VARCHAR(1000) | Detailed description |
+| `creator_id` | UUID | FK → users.id (manager who created it) |
+| `assigned_to` | UUID | FK → users.id (worker, nullable) |
+| `status` | VARCHAR(50) | `"pending"` / `"in_progress"` / `"completed"` |
+| `latitude` | INTEGER | Task site location (nullable) |
+| `longitude` | INTEGER | Task site location (nullable) |
+| `deadline` | INTEGER | Unix timestamp deadline (nullable) |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
-### `locations_table`
+### `locations`
 
-Stores GPS snapshots for live location tracking.
+Stores GPS snapshots for live location tracking of field workers.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | Primary key |
 | `user_id` | UUID | FK → users.id |
 | `organization_id` | UUID | FK → organizations.id |
-| `latitude` | VARCHAR(255) | GPS latitude |
-| `longitude` | VARCHAR(255) | GPS longitude |
-| `recorded_at` | INTEGER | When the GPS fix was taken |
-| `created_at` | INTEGER | |
-| `updated_at` | INTEGER | |
+| `latitude` | INTEGER | GPS latitude |
+| `longitude` | INTEGER | GPS longitude |
+| `recorded_at` | TIMESTAMP | When the GPS fix was captured |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
-### `messages_table`
+### `messages`
 
 Direct messages between two users within an organization.
 
@@ -252,9 +312,9 @@ Direct messages between two users within an organization.
 | `sender_id` | UUID | FK → users.id |
 | `receiver_id` | UUID | FK → users.id |
 | `content` | VARCHAR(1000) | Message body |
-| `read_at` | INTEGER | NULL until message is read |
-| `created_at` | INTEGER | |
-| `updated_at` | INTEGER | |
+| `read_at` | TIMESTAMP | NULL until the receiver reads it |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
 ---
 
@@ -263,48 +323,77 @@ Direct messages between two users within an organization.
 Base path: `/api/v1`
 
 ### Health Check
+
 | Method | Path | Auth | Status | Description |
 |---|---|---|---|---|
-| GET | `/health` | None | **DONE** | Pings Redis, returns server status |
+| GET | `/health` | None | **DONE** | Returns `"Server is healthy!"` |
 
-### Auth — `[STUB]`
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/auth/register` | None | Create new user + organization |
-| POST | `/auth/login` | None | Login, returns JWT session token |
-| POST | `/auth/logout` | JWT | Invalidate session |
-| POST | `/auth/refresh` | JWT | Refresh access token |
+### Auth
+
+| Method | Path | Auth | Status | Description |
+|---|---|---|---|---|
+| POST | `/auth/signup` | None | **DONE** | Register user + create org + set session cookie |
+| POST | `/auth/signin` | None | **DONE** | Login + set session cookie |
+| POST | `/auth/signout` | Cookie | **DONE** | Delete Redis session + clear cookie |
+| GET | `/auth/me` | Cookie | **DONE** | Return current user from session |
+
+**Signup request body:**
+```json
+{
+  "name": "Anamul Hoque",
+  "email": "user@example.com",
+  "password": "secret123",
+  "organizationName": "My Company"
+}
+```
+
+**Signup / Signin response:**
+```json
+{
+  "success": true,
+  "message": "Signup successful",
+  "data": {
+    "sessionId": "...",
+    "user": { "id": "uuid", "name": "...", "email": "..." },
+    "organization": { "id": "uuid", "name": "..." }
+  }
+}
+```
 
 ### Invitations — `[STUB]`
+
 | Method | Path | Auth | Role | Description |
 |---|---|---|---|---|
-| POST | `/invitations` | JWT | manager | Send email invite to join org |
-| GET | `/invitations` | JWT | manager | List all pending invitations |
+| POST | `/invitations` | Cookie | manager | Send email invite to join org |
+| GET | `/invitations` | Cookie | manager | List all pending invitations |
 | POST | `/invitations/:token/accept` | None | — | Accept invite via token link |
 | POST | `/invitations/:token/decline` | None | — | Decline invite via token link |
 
 ### Tasks — `[STUB]`
+
 | Method | Path | Auth | Role | Description |
 |---|---|---|---|---|
-| POST | `/tasks` | JWT | manager | Create a new task |
-| GET | `/tasks` | JWT | any | List tasks (filtered by role) |
-| GET | `/tasks/:id` | JWT | any | Get single task details |
-| PATCH | `/tasks/:id` | JWT | any | Update task (status, assignment) |
-| DELETE | `/tasks/:id` | JWT | manager | Delete a task |
+| POST | `/tasks` | Cookie | manager | Create a new task |
+| GET | `/tasks` | Cookie | any | List tasks (filtered by role) |
+| GET | `/tasks/:id` | Cookie | any | Get single task details |
+| PATCH | `/tasks/:id` | Cookie | any | Update task (status, assignment) |
+| DELETE | `/tasks/:id` | Cookie | manager | Delete a task |
 
 ### Locations — `[STUB]`
+
 | Method | Path | Auth | Role | Description |
 |---|---|---|---|---|
-| POST | `/locations` | JWT | employee | Push current GPS coordinates |
-| GET | `/locations` | JWT | manager | Get latest location for all team members |
-| GET | `/locations/:userId` | JWT | manager | Get location history for one user |
+| POST | `/locations` | Cookie | worker | Push current GPS coordinates |
+| GET | `/locations` | Cookie | manager | Get latest location for all team members |
+| GET | `/locations/:userId` | Cookie | manager | Get location history for one user |
 
 ### Messages — `[STUB]`
+
 | Method | Path | Auth | Role | Description |
 |---|---|---|---|---|
-| POST | `/messages` | JWT | any | Send a direct message |
-| GET | `/messages/:userId` | JWT | any | Get conversation with a user |
-| PATCH | `/messages/:id/read` | JWT | any | Mark message as read |
+| POST | `/messages` | Cookie | any | Send a direct message |
+| GET | `/messages/:userId` | Cookie | any | Get conversation with a user |
+| PATCH | `/messages/:id/read` | Cookie | any | Mark message as read |
 
 ---
 
@@ -324,14 +413,14 @@ DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
 # Cache (Upstash Redis)
 REDIS_URL=rediss://user:pass@host:6380
 
-# Auth
+# Auth — used to sign session cookies (keep secret, use a long random string)
 SESSION_SECRET=your-random-secret-here
 
 # Email (Gmail SMTP for invitations)
 EMAIL_USER=your@gmail.com
-EMAIL_PASS=your-app-password
+EMAIL_PASS=your-gmail-app-password
 
-# Google Maps (for geocoding)
+# Google Maps (for geocoding / map features)
 GOOGLE_MAPS_API_KEY=your-key
 
 # Cloudflare R2 (file storage)
@@ -362,9 +451,6 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:8000
 ### Install & Run
 
 ```bash
-# Clone and install
-git clone <repo-url>
-
 # Server
 cd server
 cp .env.example .env     # fill in your values
@@ -382,9 +468,9 @@ pnpm dev                 # starts on http://localhost:3000
 
 ```bash
 cd server
-pnpm drizzle-kit generate   # generate migration files
-pnpm drizzle-kit migrate    # apply migrations to DB
-pnpm drizzle-kit studio     # open Drizzle Studio browser UI
+pnpm drizzle-kit generate   # generate SQL migration files
+pnpm drizzle-kit migrate    # apply migrations to Neon DB
+pnpm drizzle-kit studio     # open Drizzle Studio in browser
 ```
 
 ### Test Redis Connection
@@ -400,210 +486,262 @@ npx tsx src/lib/redis-test.ts
 
 ### Server Modules
 
-#### `src/index.ts` — App Entry Point [PARTIAL]
+---
 
-The root Hono application. Currently:
-- Creates a Hono app with `/api/v1` base path
-- Connects to Neon PostgreSQL via Drizzle
-- Initializes the ioredis client
-- Exposes one working endpoint: `GET /api/v1/health`
-  - Sends a Redis `PING`; returns `{ status: "ok", message: "Server is healthy!" }` or `500` on failure
-- Starts the HTTP server on `PORT` (default: 3000, configured: 8000)
+#### `src/index.ts` — App Entry Point [DONE]
 
-Still needs: All route registrations (`app.route('/auth', authRoutes)` etc.)
+Root Hono application. Sets up the server and mounts all routes.
+
+- Creates Hono app with `/api/v1` base path
+- Registers `GET /health` — returns `"Server is healthy!"`
+- Registers auth routes: `app.route("/auth", authRoute)`
+- Starts HTTP server on `PORT` (default 3000, configured 8000)
+
+---
+
+#### `src/db/index.ts` — DB Instance [DONE]
+
+Creates and exports the single `db` instance used across all services.
+
+```ts
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+export const db = drizzle(pool, { schema })
+```
+
+Throws on startup if `DATABASE_URL` is missing. All services import `db` from here.
 
 ---
 
 #### `src/db/schema.ts` — Database Schema [DONE]
 
-Defines all 8 Drizzle tables and their TypeScript types. Nothing else lives here. Import specific tables from this file to use in services:
+Defines all 7 Drizzle table definitions and their TypeScript types. Import specific tables in services:
 
 ```ts
-import { UsersTable, TasksTable } from '@/db/schema'
+import { users, tasks, memberships } from '@/db/schema.js'
 ```
-
----
-
-#### `src/db/index.ts` — DB Instance [STUB]
-
-Intended to export a singleton Drizzle DB instance (initialized once at startup) so all services can import `db` without re-creating connections.
 
 ---
 
 #### `src/lib/redis.ts` — Redis Client [DONE]
 
-Exports a single `redis` ioredis instance connected via `REDIS_URL`. Logs `✅ Redis connected` on success or `❌ Redis error` on failure. Import wherever Redis is needed:
+Exports a single `redis` ioredis instance. Logs connection status on startup.
 
 ```ts
-import { redis } from '@/lib/redis'
-await redis.set('key', 'value')
+import { redis } from '@/lib/redis.js'
+await redis.set('key', 'value', 'EX', 3600)
 ```
 
 ---
 
-#### `src/lib/redis-test.ts` — Redis Test Script [DONE]
+#### `src/lib/auth.ts` — Auth Utilities [DONE]
 
-A standalone script that verifies Redis is working: PING → SET → GET → DEL → quit. Run manually to debug connection issues. Not part of the API.
+Three exported functions for password and token operations:
 
----
-
-#### `src/lib/auth-utils.ts` — Auth Utilities [STUB]
-
-Will contain:
-- `hashPassword(plain: string): Promise<string>` — bcrypt hashing
-- `verifyPassword(plain, hash): Promise<boolean>` — bcrypt compare
-- `signToken(payload): string` — sign JWT
-- `verifyToken(token): payload` — verify + decode JWT
+| Function | Signature | Description |
+|---|---|---|
+| `hashPassword` | `(password: string) → Promise<string>` | Hashes with bcrypt (10 salt rounds). Throws if input is empty or not a string. |
+| `comparePassword` | `(password, hashedPassword) → Promise<boolean>` | Compares plain text against stored hash. Throws if either argument is invalid. |
+| `generateToken` | `(byteLength?: number) → string` | Returns a cryptographically secure random hex string. Default 32 bytes = 64 hex chars. Used for invitation tokens. |
 
 ---
 
-#### `src/middleware/auth.ts` — Auth Middleware [STUB]
+#### `src/lib/session.ts` — Session Management [DONE]
 
-Will be a Hono middleware that:
-1. Reads the `Authorization: Bearer <token>` header
-2. Verifies JWT using `auth-utils.ts`
-3. Attaches `user` object to Hono context (`c.set('user', user)`)
-4. Returns `401 Unauthorized` if token missing or invalid
+Redis-based session store. All session keys use the prefix `session:` with a 7-day TTL.
 
-Usage (planned):
+**`SessionData` type:**
 ```ts
-app.use('/api/v1/tasks/*', authMiddleware)
+type SessionData = {
+  userId: string
+  organizationId: string
+  role: "manager" | "worker"
+}
+```
+
+| Function | Description |
+|---|---|
+| `createSession(data)` | Generates a 64-char random hex session ID, stores `JSON.stringify(data)` in Redis with 7-day TTL, returns the sessionId. |
+| `getSession(sessionId)` | Reads `session:{id}` from Redis, parses JSON. Returns `null` if not found (expired or invalid). |
+| `deleteSession(sessionId)` | Deletes `session:{id}` from Redis. Called on signout. |
+
+---
+
+#### `src/middleware/auth.ts` — Auth Middleware [DONE]
+
+`authMiddileware` — Hono middleware that protects any route it is applied to.
+
+**Flow:**
+1. Reads the `session` **signed cookie** using `SESSION_SECRET`
+2. If cookie missing → `401 Unauthorized`
+3. Calls `getSession(sessionId)` — looks up Redis
+4. If session not found (expired / tampered) → `401 Session expired`
+5. Calls `c.set("user", session)` — attaches `{ userId, organizationId, role }` to context
+6. Calls `next()` — proceeds to the route handler
+
+Any route handler after this middleware can access the user via:
+```ts
+const user = c.get("user") // { userId, organizationId, role }
 ```
 
 ---
 
 #### `src/middleware/requireRole.ts` — RBAC Middleware [STUB]
 
-Will be a factory middleware that checks if the authenticated user has the required role within the current organization:
+Will be a factory middleware that checks if the session user has the required role:
 
 ```ts
-app.post('/tasks', authMiddleware, requireRole('manager'), createTask)
+// Planned usage
+app.post('/tasks', authMiddileware, requireRole('manager'), createTask)
 ```
 
-Reads `user` from context (set by auth middleware), queries `MembershipsTable`, returns `403 Forbidden` if role doesn't match.
+Returns `403 Forbidden` if the user's role doesn't match.
 
 ---
 
-#### `src/routes/*.ts` — Route Definitions [STUB × 5]
+#### `src/routes/auth.ts` — Auth Routes [DONE]
 
-Each file will create a Hono router and register handler functions from its corresponding controller. Example pattern:
+Mounts all auth endpoints on a Hono router. Imported and registered in `index.ts` as `/api/v1/auth`.
 
-```ts
-// routes/tasks.ts
-const tasksRoute = new Hono()
-tasksRoute.post('/', authMiddleware, requireRole('manager'), createTask)
-tasksRoute.get('/', authMiddleware, listTasks)
-export default tasksRoute
-```
-
-Files: `auth.ts`, `invitations.ts`, `locations.ts`, `messages.ts`, `tasks.ts`
+| Method | Path | Middleware | Handler |
+|---|---|---|---|
+| POST | `/signup` | — | `signupController` |
+| POST | `/signin` | — | `signinController` |
+| POST | `/signout` | — | `singoutController` |
+| GET | `/me` | `authMiddileware` | Returns `c.get("user")` |
 
 ---
 
-#### `src/controllers/*.ts` — HTTP Handlers [STUB × 5]
+#### `src/controllers/auth.ts` — Auth Controllers [DONE]
 
-Controllers receive the Hono `Context` object (`c`), validate the request body, call the relevant service, and return an HTTP response. They do not contain business logic directly.
+Three HTTP handler functions. They parse the request, call the service, set/clear cookies, and return JSON.
 
-Example pattern:
-```ts
-// controllers/tasks.ts
-export async function createTask(c: Context) {
-  const body = await c.req.json()
-  const task = await taskService.create(body)
-  return c.json(task, 201)
-}
-```
+**`signupController`**
+- Parses JSON body → calls `auth.signupService(data)`
+- On success: sets signed `session` cookie (httpOnly, Lax, 7 days) → returns `201` with user + org data
+- On error: returns `400` with error message
 
-Files: `auth.ts`, `invitations.ts`, `locations.ts`, `messages.ts`, `tasks.ts`
+**`signinController`**
+- Parses JSON body → calls `auth.singinService(body)`
+- On success: sets signed `session` cookie → returns `201` with user + role
+- On error: returns `400` with error message
+
+**`singoutController`**
+- Reads signed session cookie → calls `deleteSession(sessionId)` on Redis
+- Deletes the `session` cookie from browser
+- Returns `200 { success: true, message: "Signout successfully!" }`
 
 ---
 
-#### `src/services/*.ts` — Business Logic [STUB × 5]
+#### `src/services/auth.ts` — Auth Business Logic [DONE]
 
-Services contain the core application logic. They interact with the database (Drizzle) and Redis. Controllers call services; services call `db` and `redis`.
+Core logic that controllers delegate to. Interacts with the DB and Redis directly.
 
-| File | Planned Functions |
-|---|---|
-| `auth.ts` | `register()`, `login()`, `logout()`, `refreshToken()` |
-| `invitations.ts` | `sendInvite()`, `acceptInvite()`, `declineInvite()`, `listInvites()` |
-| `tasks.ts` | `createTask()`, `listTasks()`, `updateTask()`, `deleteTask()`, `assignTask()` |
-| `locations.ts` | `saveLocation()`, `getTeamLocations()`, `getUserHistory()` |
-| `messages.ts` | `sendMessage()`, `getConversation()`, `markRead()` |
+**`signupService(data: { name, email, password, organizationName })`**
+
+1. Validates all fields are present; password must be ≥ 6 chars
+2. Checks `users` table for duplicate email → throws if exists
+3. Hashes password with bcrypt
+4. Runs a **DB transaction**:
+   - Inserts new user → gets `userId`
+   - Inserts new organization (owner = userId) → gets `orgId`
+   - Inserts membership: `{ userId, orgId, role: "manager" }`
+5. Creates Redis session → gets `sessionId`
+6. Returns `{ success, message, data: { sessionId, user, organization } }`
+
+**`singinService(data: { email, password })`**
+
+1. Validates fields present
+2. Queries `users` by email → throws generic error if not found (no user enumeration)
+3. bcrypt compares password → throws if mismatch
+4. Queries `memberships` for this user → throws if no org found
+5. Creates Redis session with `{ userId, organizationId, role }`
+6. Returns `{ success, message, data: { sessionId, user, role } }`
+
+---
+
+#### `src/services/index.ts` & `src/controllers/index.ts` — Re-exports [DONE]
+
+Both simply re-export their respective module namespaces:
+
+```ts
+import * as auth from "./auth.js"
+export { auth }
+```
+
+This allows callers to do:
+```ts
+import { auth } from "@/services/index.js"
+auth.signupService(data)
+```
+
+---
+
+#### `src/lib/redis-test.ts` — Redis Test Script [DONE]
+
+Standalone script: PING → SET → GET → DEL → quit. Run to verify Redis connectivity:
+
+```bash
+npx tsx src/lib/redis-test.ts
+```
+
+---
+
+#### Remaining Routes / Controllers / Services — `[STUB]`
+
+These files exist but are empty. Implementation is planned per the roadmap:
+
+| Module | Files | Planned Functions |
+|---|---|---|
+| Invitations | routes, controllers, services | `sendInvite`, `acceptInvite`, `declineInvite`, `listInvites` |
+| Tasks | routes, controllers, services | `createTask`, `listTasks`, `updateTask`, `deleteTask`, `assignTask` |
+| Locations | routes, controllers, services | `saveLocation`, `getTeamLocations`, `getUserHistory` |
+| Messages | routes, controllers, services | `sendMessage`, `getConversation`, `markRead` |
 
 ---
 
 ### Client Modules
 
+---
+
 #### `app/layout.tsx` — Root Layout [DONE]
 
-Wraps every page with:
-- Geist + Inter font variables (applied to `<html>`)
-- `ThemeProvider` for dark mode support
-- Tailwind CSS base styles
+Wraps every page with Geist + Inter fonts, `ThemeProvider` (dark mode), and Tailwind base styles.
 
 ---
 
 #### `app/page.tsx` — Home Page [DONE]
 
-Landing page placeholder. Shows "Project ready!" with dark mode hint. Will become the marketing/splash page.
+Placeholder landing page. Shows "Project ready!" message with a dark mode keyboard shortcut hint.
 
 ---
 
 #### `app/globals.css` — Design System [DONE]
 
-Defines the full visual design system using CSS custom properties:
-- 40+ color tokens (`--background`, `--foreground`, `--primary`, `--destructive`, etc.) in OKLch color space
-- Separate light and dark mode palettes
-- Radius scale (`--radius-sm` through `--radius-4xl`)
-- Chart colors (`--chart-1` through `--chart-5`)
-- Sidebar-specific color tokens
-
-These variables are used by shadcn/ui components throughout the app.
-
----
-
-#### `app/(auth)/login/page.tsx` & `signup/page.tsx` — Auth Pages [STUB]
-
-Will contain:
-- Login: email + password form → `POST /api/v1/auth/login` → store token → redirect to dashboard
-- Signup: name + email + password form → `POST /api/v1/auth/register` → create user + org → redirect
-
----
-
-#### `app/(dashboard)/*` — Dashboard Pages [STUB × 4]
-
-| Page | Planned Functionality |
-|---|---|
-| `tasks/page.tsx` | List/create/update tasks; managers see all tasks, employees see assigned tasks |
-| `map/page.tsx` | Google Maps showing live employee locations with markers (Socket.IO updates in real-time) |
-| `chat/page.ts` | Real-time direct messaging interface (Socket.IO) |
-| `team/page.tsx` | Team member list, roles, invite new members via email |
-
----
-
-#### `app/api/[[...route]]/route.ts` — API Proxy [STUB]
-
-Next.js catch-all API route. Will proxy requests from the browser to the Hono backend, allowing the client to call `/api/*` without hardcoding the backend URL. Alternatively may use `NEXT_PUBLIC_API_URL` directly from the client.
+Full visual token system using CSS custom properties (OKLch color space):
+- 40+ color tokens: `--background`, `--foreground`, `--primary`, `--destructive`, etc.
+- Light and dark mode palettes
+- Radius scale: `--radius-sm` → `--radius-4xl`
+- Chart colors: `--chart-1` → `--chart-5`
+- Sidebar color tokens
 
 ---
 
 #### `components/theme-provider.tsx` — Dark Mode [DONE]
 
-Two components:
-- `ThemeProvider` — wraps `next-themes` `NextThemesProvider`; enables system/light/dark mode
-- `ThemeHotkey` — listens for the `d` key globally; toggles between `light` and `dark`; disabled when user is focused on an input or textarea
+- `ThemeProvider` — wraps `next-themes` `NextThemesProvider`
+- `ThemeHotkey` — listens for `d` key globally to toggle light/dark; disabled inside `<input>` / `<textarea>`
 
 ---
 
 #### `components/ui/button.tsx` — Button Component [DONE]
 
-Production-ready Button built with shadcn/ui + CVA:
+Built with shadcn/ui + CVA.
 
-**Variants:** `default` (primary), `outline`, `secondary`, `ghost`, `destructive`, `link`
+**Variants:** `default`, `outline`, `secondary`, `ghost`, `destructive`, `link`
 
 **Sizes:** `xs`, `sm`, `default`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`
 
-**Features:** `asChild` prop for polymorphic rendering via Radix Slot, disabled/focus/active states, proper accessibility attributes.
+Supports `asChild` prop (Radix Slot) for polymorphic rendering.
 
 ---
 
@@ -615,17 +753,30 @@ export function cn(...inputs: ClassValue[]) {
 }
 ```
 
-Merges Tailwind classes safely (resolves conflicts like `p-2 p-4` → keeps only `p-4`). Used by every UI component.
+Merges Tailwind classes without conflicts. Used by all UI components.
+
+---
+
+#### Auth & Dashboard Pages — `[STUB]`
+
+| Page | Plans |
+|---|---|
+| `(auth)/login/page.tsx` | Email + password form → `POST /api/v1/auth/signin` → redirect to dashboard |
+| `(auth)/signup/page.tsx` | Name + email + password + org name form → `POST /api/v1/auth/signup` |
+| `(dashboard)/tasks/page.tsx` | Task list + create form; role-filtered view |
+| `(dashboard)/map/page.tsx` | Google Maps with employee location markers (live via Socket.IO) |
+| `(dashboard)/chat/page.ts` | DM interface with real-time updates via Socket.IO |
+| `(dashboard)/team/page.tsx` | Member list, roles, send invitations |
 
 ---
 
 #### `socket-server.ts` — Socket.IO Server [STUB]
 
-Root-level placeholder for the WebSocket server. Will handle:
-- `location:update` — employee pushes GPS coordinates; broadcast to manager
-- `message:send` — real-time chat delivery
-- `task:update` — notify employee when a task is assigned/updated
-- Connection authentication (verify JWT on handshake)
+Will handle:
+- `location:update` — worker pushes GPS; broadcast to manager
+- `message:send` — real-time DM delivery
+- `task:update` — notify worker when assigned a task
+- Session auth on WebSocket handshake (read cookie, validate Redis session)
 
 ---
 
@@ -634,29 +785,33 @@ Root-level placeholder for the WebSocket server. Will handle:
 ### Done
 
 - [x] Project scaffolding (client + server directory structure)
-- [x] Hono server with `GET /api/v1/health` endpoint
-- [x] PostgreSQL connection via Neon + Drizzle
+- [x] PostgreSQL connection via Neon + Drizzle (`pg.Pool`)
 - [x] Redis connection via Upstash ioredis
-- [x] Full database schema (8 tables, all relationships defined)
+- [x] Full database schema (7 tables, all relationships defined)
 - [x] Drizzle migration config
+- [x] `GET /api/v1/health` endpoint
+- [x] **Auth — signup** (`POST /auth/signup`) — creates user + org in DB transaction, sets session cookie
+- [x] **Auth — signin** (`POST /auth/signin`) — verifies password, creates Redis session, sets cookie
+- [x] **Auth — signout** (`POST /auth/signout`) — deletes Redis session, clears cookie
+- [x] **Auth — me** (`GET /auth/me`) — returns session user from cookie
+- [x] `authMiddileware` — cookie session validation for protected routes
+- [x] `hashPassword` / `comparePassword` — bcrypt utilities
+- [x] `generateToken` — secure random hex for invitation tokens
+- [x] Redis session management (`createSession`, `getSession`, `deleteSession`)
 - [x] Next.js 16 client with App Router
 - [x] Tailwind CSS v4 + shadcn/ui design system
-- [x] Dark mode toggle (ThemeProvider + keyboard shortcut)
+- [x] Dark mode toggle (ThemeProvider + `d` key shortcut)
 - [x] Button component with variants
 - [x] TypeScript configured on both client and server
-- [x] Environment variable setup
 
-### In Progress / Stub
+### Stub (file created, not yet implemented)
 
-- [ ] Auth middleware (JWT verification)
-- [ ] Role-based access middleware
-- [ ] Auth-utils (password hashing, token signing)
-- [ ] DB singleton (`src/db/index.ts`)
+- [ ] `requireRole` middleware — RBAC by session role
+- [ ] `src/lib/auth-utils.ts` — (empty, can be removed; `src/lib/auth.ts` replaced it)
 
 ### Not Started
 
-- [ ] Auth endpoints (register, login, logout, refresh)
-- [ ] Invitation system (email sending + token flow)
+- [ ] Invitation system (email sending + token accept/decline flow)
 - [ ] Task CRUD endpoints
 - [ ] Location tracking endpoints
 - [ ] Messaging endpoints
@@ -664,8 +819,8 @@ Root-level placeholder for the WebSocket server. Will handle:
 - [ ] Login & signup pages (client)
 - [ ] Dashboard pages (tasks, map, chat, team)
 - [ ] Google Maps JavaScript API integration (`@googlemaps/js-api-loader`)
-- [ ] API client (axios instance with auth headers)
-- [ ] Custom React hooks (useAuth, useSocket, useTasks, etc.)
+- [ ] API client (axios instance with credentials: "include" for cookies)
+- [ ] Custom React hooks (`useAuth`, `useSocket`, `useTasks`, etc.)
 - [ ] File uploads (Cloudflare R2)
 - [ ] Email service (Gmail SMTP for invitations)
 
@@ -676,10 +831,10 @@ Root-level placeholder for the WebSocket server. Will handle:
 | Week | Feature | Status |
 |---|---|---|
 | 1 | Project setup (server + client + DB schema) | Done |
-| 2 | Auth & multi-tenancy (register, login, JWT, orgs) | Next |
-| 3 | Invitations (email invite flow, accept/decline) | Pending |
+| 2 | Auth & multi-tenancy (signup, signin, signout, session) | Done |
+| 3 | Invitations (email invite flow, accept/decline) | Next |
 | 4 | Task management (CRUD, assignment, status) | Pending |
-| 5 | Real-time location (Socket.IO, Leaflet map) | Pending |
+| 5 | Real-time location (Socket.IO, Google Maps) | Pending |
 | 6 | Real-time chat (DMs, read receipts) | Pending |
 | 7 | Dashboard (stats, overview, notifications) | Pending |
 | 8–13 | Polish, testing, deployment, extras | Pending |
