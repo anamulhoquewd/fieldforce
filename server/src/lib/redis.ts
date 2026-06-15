@@ -1,4 +1,4 @@
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import "dotenv/config.js";
 
 if (!process.env.REDIS_URL) {

@@ -79,38 +79,39 @@ fieldforce/
 │
 ├── server/                        # Hono REST API server
 │   ├── src/
-│   │   ├── index.ts               # [DONE] App entry — health check + auth route
+│   │   ├── index.ts               # [DONE] App entry — health check + auth + invitation routes
 │   │   ├── db/
-│   │   │   ├── schema.ts          # [DONE] Drizzle schema — 7 tables
+│   │   │   ├── schema.ts          # [DONE] Drizzle schema — 7 tables + 2 pgEnums
 │   │   │   └── index.ts           # [DONE] PostgreSQL pool + Drizzle db instance
 │   │   ├── lib/
 │   │   │   ├── redis.ts           # [DONE] Redis client singleton
-│   │   │   ├── redis-test.ts      # [DONE] Redis connectivity test script
 │   │   │   ├── auth.ts            # [DONE] bcrypt hash, compare, token generator
 │   │   │   └── session.ts         # [DONE] Redis session create / get / delete
 │   │   ├── middleware/
-│   │   │   ├── auth.ts            # [DONE] Session cookie auth middleware
-│   │   │   └── requireRole.ts     # [STUB] Role-based access middleware
+│   │   │   ├── auth.ts            # [DONE] authMiddileware + requiredRoles (RBAC)
+│   │   │   └── requireRole.ts     # [STUB] (superseded by requiredRoles in auth.ts)
 │   │   ├── routes/
 │   │   │   ├── auth.ts            # [DONE] /api/v1/auth/* (signup, signin, signout, me)
-│   │   │   ├── invitations.ts     # [STUB] /api/v1/invitations/*
+│   │   │   ├── invitations.ts     # [DONE] /api/v1/invitations/* (register, list, accept)
 │   │   │   ├── locations.ts       # [STUB] /api/v1/locations/*
 │   │   │   ├── messages.ts        # [STUB] /api/v1/messages/*
 │   │   │   └── tasks.ts           # [STUB] /api/v1/tasks/*
 │   │   ├── controllers/
-│   │   │   ├── index.ts           # [DONE] Controller re-exports
+│   │   │   ├── index.ts           # [DONE] Controller re-exports (auth, invitation)
 │   │   │   ├── auth.ts            # [DONE] signup / signin / signout handlers
-│   │   │   ├── invitations.ts     # [STUB] Invitation HTTP handlers
+│   │   │   ├── invitations.ts     # [DONE] create / list / accept invitation handlers
 │   │   │   ├── locations.ts       # [STUB] Location HTTP handlers
 │   │   │   ├── messages.ts        # [STUB] Message HTTP handlers
 │   │   │   └── tasks.ts           # [STUB] Task HTTP handlers
 │   │   └── services/
-│   │       ├── index.ts           # [DONE] Service re-exports
+│   │       ├── index.ts           # [DONE] Service re-exports (auth, invitations)
 │   │       ├── auth.ts            # [DONE] signupService, singinService
-│   │       ├── invitations.ts     # [STUB] Invitation business logic
+│   │       ├── invitations.ts     # [DONE] createInvitationService, acceptInvitationService
 │   │       ├── locations.ts       # [STUB] Location business logic
 │   │       ├── messages.ts        # [STUB] Message business logic
 │   │       └── tasks.ts           # [STUB] Task business logic
+│   ├── types/
+│   │   └── index.ts               # [DONE] Shared TypeScript types (IRoles)
 │   ├── .env                       # Server env vars (DB, Redis, API keys)
 │   ├── .env.example               # Env template
 │   ├── drizzle.config.ts          # Drizzle ORM + migration config
@@ -218,6 +219,10 @@ Request with cookie → authMiddleware
 
 All tables defined in [server/src/db/schema.ts](server/src/db/schema.ts). The DB instance is created in [server/src/db/index.ts](server/src/db/index.ts) using a `pg.Pool` and passed to Drizzle with the full schema for relational queries.
 
+**Drizzle pgEnums defined in schema:**
+- `roleEnum` — `"manager" | "worker"` — used in `memberships.role` and `invitations.role`
+- `invitationStatuses` — `"pending" | "accepted" | "declined"` — used in `invitations.status`
+
 ### `users`
 
 | Column | Type | Notes |
@@ -248,7 +253,7 @@ Links users to organizations with a role. A user can belong to multiple orgs.
 | `id` | UUID | Primary key |
 | `user_id` | UUID | FK → users.id |
 | `organization_id` | UUID | FK → organizations.id |
-| `role` | VARCHAR(50) | `"manager"` or `"worker"` |
+| `role` | ENUM (`roleEnum`) | `"manager"` or `"worker"` |
 | `joined_at` | TIMESTAMP | |
 | `created_at` | TIMESTAMP | |
 | `updated_at` | TIMESTAMP | |
@@ -263,7 +268,8 @@ Tracks email invitations to join an organization.
 | `organization_id` | UUID | FK → organizations.id |
 | `email` | VARCHAR(255) | Invitee email address |
 | `token` | VARCHAR(255) | Secure random hex token (sent via email link) |
-| `status` | VARCHAR(50) | `"pending"` / `"accepted"` / `"declined"` |
+| `role` | ENUM (`roleEnum`) | Role the invitee will receive: `"manager"` / `"worker"` |
+| `status` | ENUM (`invitationStatuses`) | `"pending"` (default) / `"accepted"` / `"declined"` |
 | `created_at` | TIMESTAMP | |
 | `updated_at` | TIMESTAMP | |
 
@@ -360,14 +366,36 @@ Base path: `/api/v1`
 }
 ```
 
-### Invitations — `[STUB]`
+### Invitations
 
-| Method | Path | Auth | Role | Description |
-|---|---|---|---|---|
-| POST | `/invitations` | Cookie | manager | Send email invite to join org |
-| GET | `/invitations` | Cookie | manager | List all pending invitations |
-| POST | `/invitations/:token/accept` | None | — | Accept invite via token link |
-| POST | `/invitations/:token/decline` | None | — | Decline invite via token link |
+| Method | Path | Auth | Role | Status | Description |
+|---|---|---|---|---|---|
+| POST | `/invitations/register` | Cookie | manager | **DONE** | Create invitation record + return invite link |
+| GET | `/invitations/list` | Cookie | manager | **DONE** | List all invitations for the org |
+| POST | `/invitations/accept` | None | — | **DONE** | Accept invite — creates user account + sets session |
+| POST | `/invitations/decline` | None | — | STUB | Decline an invitation via token |
+
+**`POST /invitations/register` request body:**
+```json
+{ "email": "worker@example.com", "role": "worker" }
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Invitation created",
+  "data": {
+    "invitation": { ... },
+    "inviteLink": "http://localhost:3000/join?token=abc123..."
+  }
+}
+```
+
+**`POST /invitations/accept` request body:**
+```json
+{ "token": "abc123...", "name": "Field Worker", "password": "secret123" }
+```
 
 ### Tasks — `[STUB]`
 
@@ -473,13 +501,6 @@ pnpm drizzle-kit migrate    # apply migrations to Neon DB
 pnpm drizzle-kit studio     # open Drizzle Studio in browser
 ```
 
-### Test Redis Connection
-
-```bash
-cd server
-npx tsx src/lib/redis-test.ts
-```
-
 ---
 
 ## Module Breakdown
@@ -539,7 +560,7 @@ Three exported functions for password and token operations:
 
 | Function | Signature | Description |
 |---|---|---|
-| `hashPassword` | `(password: string) → Promise<string>` | Hashes with bcrypt (10 salt rounds). Throws if input is empty or not a string. |
+| `passwordHashingHelper` | `(password: string) → Promise<string>` | Hashes with bcrypt (10 salt rounds). Throws if input is empty or not a string. |
 | `comparePassword` | `(password, hashedPassword) → Promise<boolean>` | Compares plain text against stored hash. Throws if either argument is invalid. |
 | `generateToken` | `(byteLength?: number) → string` | Returns a cryptographically secure random hex string. Default 32 bytes = 64 hex chars. Used for invitation tokens. |
 
@@ -676,23 +697,100 @@ auth.signupService(data)
 
 ---
 
-#### `src/lib/redis-test.ts` — Redis Test Script [DONE]
+---
 
-Standalone script: PING → SET → GET → DEL → quit. Run to verify Redis connectivity:
+#### `src/middleware/auth.ts` — Auth + RBAC Middleware [DONE]
 
-```bash
-npx tsx src/lib/redis-test.ts
+Now exports two middleware functions:
+
+**`authMiddileware`** — validates session cookie (as described in Auth Strategy above).
+
+**`requiredRoles(...allowedRoles)`** — factory that returns a Hono middleware enforcing role-based access. Must be used after `authMiddileware` (which sets `c.get("user")`).
+
+```ts
+invitationRoute.post("/register", authMiddileware, requiredRoles("manager"), handler)
 ```
+
+Returns `403 Forbidden: insufficient permissions` if user role is not in `allowedRoles`.
+
+---
+
+#### `server/types/index.ts` — Shared Types [DONE]
+
+Shared TypeScript interfaces used across server modules.
+
+```ts
+export interface IRoles {
+  role: "manager" | "worker"
+}
+```
+
+Imported by `services/invitations.ts` for type-safe role handling.
+
+---
+
+#### `src/routes/invitations.ts` — Invitation Routes [DONE]
+
+| Method | Path | Middleware | Handler |
+|---|---|---|---|
+| POST | `/invitations/register` | `authMiddileware`, `requiredRoles("manager")` | `invitationController` |
+| GET | `/invitations/list` | `authMiddileware`, `requiredRoles("manager")` | `listInvitationsController` |
+| POST | `/invitations/accept` | — | `acceptInvitationController` |
+
+---
+
+#### `src/controllers/invitations.ts` — Invitation Controllers [DONE]
+
+**`invitationController`**
+- Reads `user` from context → gets `organizationId`
+- Parses body for `email` and optional `role` (defaults to `"worker"`)
+- Calls `invitations.createInvitationService(...)` → returns `201` with invitation + invite link
+
+**`listInvitationsController`**
+- Reads `organizationId` from session context
+- Queries `db.query.invitations.findMany` filtered by `organizationId`
+- Returns all invitations for the org (any status)
+
+**`acceptInvitationController`**
+- Parses body: `{ token, name, password }`
+- Calls `invitations.acceptInvitationService(body)`
+- On success: sets signed session cookie → returns `201` with user + role
+
+---
+
+#### `src/services/invitations.ts` — Invitation Business Logic [DONE]
+
+**`createInvitationService({ organizationId, email, role })`**
+
+1. Validates `email` and `role` are present
+2. Generates a 64-char hex token via `generateToken(32)`
+3. Inserts invitation record: `{ organizationId, email, token, role, status: "pending" }`
+4. Returns invitation data + `inviteLink` = `{CLIENT_ORIGIN}/join?token={token}`
+
+> Email sending is not yet wired up — the invite link is returned in the API response for now.
+
+**`acceptInvitationService({ token, name, password })`**
+
+1. Validates all fields; password must be ≥ 5 chars
+2. Looks up invitation by `token` → throws if not found
+3. Checks `invite.status === "pending"` → throws if already used
+4. Checks no existing user with `invite.email` → throws if duplicate
+5. Hashes password with `passwordHashingHelper`
+6. Runs a **DB transaction**:
+   - Inserts new user
+   - Inserts membership with `invite.role`
+   - Updates invitation `status` → `"accepted"`
+7. Creates Redis session: `{ userId, organizationId, role: invite.role }`
+8. Returns `{ sessionId, user, role }`
 
 ---
 
 #### Remaining Routes / Controllers / Services — `[STUB]`
 
-These files exist but are empty. Implementation is planned per the roadmap:
+These files exist but are empty:
 
 | Module | Files | Planned Functions |
 |---|---|---|
-| Invitations | routes, controllers, services | `sendInvite`, `acceptInvite`, `declineInvite`, `listInvites` |
 | Tasks | routes, controllers, services | `createTask`, `listTasks`, `updateTask`, `deleteTask`, `assignTask` |
 | Locations | routes, controllers, services | `saveLocation`, `getTeamLocations`, `getUserHistory` |
 | Messages | routes, controllers, services | `sendMessage`, `getConversation`, `markRead` |
@@ -787,31 +885,37 @@ Will handle:
 - [x] Project scaffolding (client + server directory structure)
 - [x] PostgreSQL connection via Neon + Drizzle (`pg.Pool`)
 - [x] Redis connection via Upstash ioredis
-- [x] Full database schema (7 tables, all relationships defined)
+- [x] Full database schema (7 tables + 2 pgEnums, all relationships defined)
 - [x] Drizzle migration config
 - [x] `GET /api/v1/health` endpoint
 - [x] **Auth — signup** (`POST /auth/signup`) — creates user + org in DB transaction, sets session cookie
 - [x] **Auth — signin** (`POST /auth/signin`) — verifies password, creates Redis session, sets cookie
 - [x] **Auth — signout** (`POST /auth/signout`) — deletes Redis session, clears cookie
 - [x] **Auth — me** (`GET /auth/me`) — returns session user from cookie
-- [x] `authMiddileware` — cookie session validation for protected routes
-- [x] `hashPassword` / `comparePassword` — bcrypt utilities
+- [x] `authMiddileware` — signed cookie session validation for protected routes
+- [x] `requiredRoles()` — RBAC middleware factory (role-based access control)
+- [x] `passwordHashingHelper` / `comparePassword` — bcrypt utilities
 - [x] `generateToken` — secure random hex for invitation tokens
 - [x] Redis session management (`createSession`, `getSession`, `deleteSession`)
+- [x] **Invitations — create** (`POST /invitations/register`) — manager creates invite + returns link
+- [x] **Invitations — list** (`GET /invitations/list`) — manager lists all org invitations
+- [x] **Invitations — accept** (`POST /invitations/accept`) — creates user + membership + sets session
+- [x] `server/types/index.ts` — shared `IRoles` type
 - [x] Next.js 16 client with App Router
 - [x] Tailwind CSS v4 + shadcn/ui design system
 - [x] Dark mode toggle (ThemeProvider + `d` key shortcut)
 - [x] Button component with variants
 - [x] TypeScript configured on both client and server
 
-### Stub (file created, not yet implemented)
+### Stub / Pending
 
-- [ ] `requireRole` middleware — RBAC by session role
-- [ ] `src/lib/auth-utils.ts` — (empty, can be removed; `src/lib/auth.ts` replaced it)
+- [ ] `requireRole.ts` — superseded by `requiredRoles()` in `middleware/auth.ts` (safe to delete)
+- [ ] `src/lib/auth-utils.ts` — empty, replaced by `src/lib/auth.ts` (safe to delete)
+- [ ] Invitation decline endpoint (`POST /invitations/decline`)
+- [ ] Email sending for invitations (invite link currently returned in API response only)
 
 ### Not Started
 
-- [ ] Invitation system (email sending + token accept/decline flow)
 - [ ] Task CRUD endpoints
 - [ ] Location tracking endpoints
 - [ ] Messaging endpoints
@@ -819,7 +923,7 @@ Will handle:
 - [ ] Login & signup pages (client)
 - [ ] Dashboard pages (tasks, map, chat, team)
 - [ ] Google Maps JavaScript API integration (`@googlemaps/js-api-loader`)
-- [ ] API client (axios instance with credentials: "include" for cookies)
+- [ ] API client (axios instance with `credentials: "include"` for cookies)
 - [ ] Custom React hooks (`useAuth`, `useSocket`, `useTasks`, etc.)
 - [ ] File uploads (Cloudflare R2)
 - [ ] Email service (Gmail SMTP for invitations)
@@ -832,7 +936,7 @@ Will handle:
 |---|---|---|
 | 1 | Project setup (server + client + DB schema) | Done |
 | 2 | Auth & multi-tenancy (signup, signin, signout, session) | Done |
-| 3 | Invitations (email invite flow, accept/decline) | Next |
+| 3 | Invitations (create, accept, list — email sending pending) | In Progress |
 | 4 | Task management (CRUD, assignment, status) | Pending |
 | 5 | Real-time location (Socket.IO, Google Maps) | Pending |
 | 6 | Real-time chat (DMs, read receipts) | Pending |

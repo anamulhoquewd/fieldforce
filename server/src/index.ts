@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import "dotenv/config";
 import { Hono } from "hono";
 import authRoute from "./routes/auth.js";
+import invitationRoute from "./routes/invitations.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -18,6 +19,9 @@ app.get("/health", async (c) => {
 
 // Auth rotue
 app.route("/auth", authRoute);
+
+// invitations route
+app.route("/invitations", invitationRoute);
 
 serve(
   {

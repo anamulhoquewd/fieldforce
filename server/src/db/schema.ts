@@ -1,5 +1,6 @@
 import {
   integer,
+  pgEnum,
   pgTable,
   timestamp,
   uuid,
@@ -74,6 +75,14 @@ export type Messages = {
   updatedAt: Date;
 };
 
+export const invitationStatuses = pgEnum("invitation_status", [
+  "pending",
+  "accepted",
+  "declined",
+]);
+
+export const roleEnum = pgEnum("role", ["manager", "worker"]);
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -95,7 +104,7 @@ export const memberships = pgTable("memberships", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
   organizationId: uuid("organization_id").notNull(),
-  role: varchar("role", { length: 50 }).notNull(),
+  role: roleEnum("role").notNull(),
   joinedAt: timestamp("joined_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -106,7 +115,8 @@ export const invitations = pgTable("invitations", {
   organizationId: uuid("organization_id").notNull(),
   email: varchar("email", { length: 255 }).notNull(),
   token: varchar("token", { length: 255 }).notNull(),
-  status: varchar("status", { length: 50 }).notNull(),
+  role: roleEnum("role").notNull(),
+  status: invitationStatuses("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

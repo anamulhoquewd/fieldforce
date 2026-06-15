@@ -7,7 +7,7 @@ function generateToken(byteLength: number = 32): string {
   return randomBytes(byteLength).toString("hex");
 }
 
-async function hashPassword(password: string): Promise<string> {
+async function passwordHashingHelper(password: string): Promise<string> {
   if (!password || typeof password !== "string") {
     throw new Error("Invalid password provided. Must be a non-empty string.");
   }
@@ -40,4 +40,4 @@ async function comparePassword(
   return isMatch;
 }
 
-export { hashPassword, comparePassword, generateToken };
+export { passwordHashingHelper, comparePassword, generateToken };

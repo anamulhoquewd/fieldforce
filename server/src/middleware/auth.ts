@@ -18,4 +18,19 @@ const authMiddileware = async (c: Context, next: Next) => {
   await next();
 };
 
-export { authMiddileware };
+const requiredRoles = (...allowedRoles: string[]) => {
+  return async (c: Context, next: Next) => {
+    const user = c.get("user");
+    if (!user || !allowedRoles.includes(user.role)) {
+      return c.json(
+        { success: false, message: "Forbidden: insufficient permissions" },
+        403,
+      );
+    }
+
+    await next();
+  };
+};
+
+export { authMiddileware, requiredRoles };
+

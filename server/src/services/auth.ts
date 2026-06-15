@@ -1,6 +1,6 @@
 import { db } from "@/db/index.js";
 import { memberships, organizations, users } from "@/db/schema.js";
-import { comparePassword, hashPassword } from "@/lib/auth.js";
+import { comparePassword, passwordHashingHelper } from "@/lib/auth.js";
 import { createSession } from "@/lib/session.js";
 
 interface SignupData {
@@ -9,6 +9,12 @@ interface SignupData {
   password: string;
   organizationName: string;
 }
+
+interface SinginData {
+  email: string;
+  password: string;
+}
+
 const signupService = async (data: SignupData) => {
   const { name, email, password, organizationName } = data;
   if (!name || !email || !password || !organizationName) {
@@ -28,7 +34,7 @@ const signupService = async (data: SignupData) => {
   }
   try {
     // create hash of the password
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await passwordHashingHelper(password);
 
     // Create a new user in the database using transaction
     const result = await db.transaction(async (trx) => {
@@ -93,10 +99,6 @@ const signupService = async (data: SignupData) => {
   }
 };
 
-interface SinginData {
-  email: string;
-  password: string;
-}
 const singinService = async (data: SinginData) => {
   const { email, password } = data;
   if (!email || !password) throw new Error("Email and password are required.");
@@ -141,3 +143,4 @@ const singinService = async (data: SinginData) => {
 };
 
 export { signupService, singinService };
+

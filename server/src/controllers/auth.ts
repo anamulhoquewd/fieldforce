@@ -3,7 +3,8 @@ import { auth } from "@/services/index.js";
 import type { Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 
-const SESSION_SECRET = process.env.SESSION_SECRET || "field_force_dev_by_anam";
+export const SESSION_SECRET =
+  process.env.SESSION_SECRET || "field_force_dev_by_anam";
 
 const signupController = async (c: Context) => {
   const data = await c.req.json();
