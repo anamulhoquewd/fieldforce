@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Get-ChildItem -Recurse \"f:\\\\SOFTWARES\\\\FieldForce\\\\fieldforce\\\\server\\\\types\\\\\")"
+      "Bash(Get-ChildItem -Recurse \"f:\\\\SOFTWARES\\\\FieldForce\\\\fieldforce\\\\server\\\\types\\\\\")",
+      "Bash(Get-ChildItem -Recurse \"f:\\\\SOFTWARES\\\\FieldForce\\\\fieldforce\\\\client\\\\app\\\\auth\\\\\" | Select-Object FullName)"
     ]
   }
 }

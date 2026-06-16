@@ -1,3 +1,8 @@
+import {
+  authenticationError,
+  badRequestError,
+  serverError,
+} from "@/errors/index.js";
 import { deleteSession } from "@/lib/session.js";
 import { auth } from "@/services/index.js";
 import type { Context } from "hono";
@@ -7,65 +12,107 @@ export const SESSION_SECRET =
   process.env.SESSION_SECRET || "field_force_dev_by_anam";
 
 const signupController = async (c: Context) => {
-  const data = await c.req.json();
-  try {
-    const response = await auth.signupService(data);
+  const body = await c.req.json();
 
-    await setSignedCookie(
-      c,
-      "session",
-      response.data.sessionId,
-      SESSION_SECRET,
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "Lax",
-        maxAge: 60 * 60 * 24 * 7, // 7 Days
-        path: "/",
-      },
-    );
+  const response = await auth.signupService(body);
 
-    return c.json(response, 201);
-  } catch (error: any) {
-    return c.json({ success: false, message: error.message }, 400);
+  if (response.error) {
+    return badRequestError(c, response.error);
   }
+
+  if (response.serverError) {
+    return serverError(c, response.serverError);
+  }
+
+  await setSignedCookie(c, "session", response.data.sessionId, SESSION_SECRET, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Lax",
+    maxAge: 60 * 60 * 24 * 7, // 7 Days
+    path: "/",
+  });
+
+  return c.json(response, 201);
 };
 
 const signinController = async (c: Context) => {
   const body = await c.req.json();
 
-  try {
-    const response = await auth.singinService(body);
+  const response = await auth.singinService(body);
 
-    await setSignedCookie(
-      c,
-      "session",
-      response.data.sessionId,
-      SESSION_SECRET,
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "Lax",
-        maxAge: 60 * 60 * 24 * 7, // 7 Days
-        path: "/",
-      },
-    );
-
-    return c.json(response, 201);
-  } catch (error: any) {
-    return c.json({ success: false, message: error.message }, 400);
+  if (response.error) {
+    return badRequestError(c, response.error);
   }
+
+  if (response.serverError) {
+    return serverError(c, response.serverError);
+  }
+
+  await setSignedCookie(c, "session", response.data.sessionId, SESSION_SECRET, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Lax",
+    maxAge: 60 * 60 * 24 * 7, // 7 Days
+    // maxAge: 30, // 30s
+    path: "/",
+  });
+
+  return c.json(response, 201);
 };
 
 const singoutController = async (c: Context) => {
-  const sessionId = await getSignedCookie(c, SESSION_SECRET, "session");
-  if (sessionId) {
+  try {
+    const sessionId = await getSignedCookie(c, SESSION_SECRET, "session");
+    if (!sessionId) {
+      return authenticationError(c, "Session id missing");
+    }
     await deleteSession(sessionId);
+
+    deleteCookie(c, "session", { path: "/" });
+
+    return c.json({ success: true, message: "Signout successfully!" }, 200);
+  } catch (error: any) {
+    return c.json(
+      {
+        success: false,
+        message: error.message,
+        stack: process.env.NODE_ENV === "production" ? null : error.stack,
+      },
+      500,
+    );
   }
-
-  deleteCookie(c, "session", { path: "/" });
-
-  return c.json({ success: true, message: "Signout successfully!" }, 200);
 };
 
-export { signupController, signinController, singoutController };
+// Get Me
+const fetchMe = async (c: Context) => {
+  try {
+    // Get user from auth token
+    const user = c.get("user");
+
+    // Check if user is authenticated
+    if (!user) {
+      return authenticationError(c);
+    }
+
+    // Response
+    return c.json(
+      {
+        success: true,
+        message: "User fetched successfully",
+        data: user,
+      },
+      200,
+    );
+  } catch (error: any) {
+    return c.json(
+      {
+        success: false,
+        message: error.message,
+        stack: process.env.NODE_ENV === "production" ? null : error.stack,
+      },
+      500,
+    );
+  }
+};
+
+export { fetchMe, signinController, signupController, singoutController };

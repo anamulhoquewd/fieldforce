@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/session.js";
 import type { Context, Next } from "hono";
-import { getSignedCookie } from "hono/cookie";
+import { deleteCookie, getSignedCookie } from "hono/cookie";
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "field_force_dev_by_anam";
 
@@ -10,8 +10,10 @@ const authMiddileware = async (c: Context, next: Next) => {
     return c.json({ success: false, message: "Unauthorized" }, 401);
 
   const session = await getSession(sessionId);
-  if (!session)
+  if (!session) {
+    deleteCookie(c, "session", { path: "/" });
     return c.json({ success: false, message: "Session expired" }, 401);
+  }
 
   c.set("user", session);
 
@@ -33,4 +35,3 @@ const requiredRoles = (...allowedRoles: string[]) => {
 };
 
 export { authMiddileware, requiredRoles };
-
