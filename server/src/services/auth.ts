@@ -8,58 +8,22 @@ import {
 } from "@/lib/auth.js";
 import { createSession } from "@/lib/session.js";
 import { eq } from "drizzle-orm";
-import z from "zod";
-
-export const zPasswordReset = z.object({
-  password: z.string().min(8).max(20),
-});
-
-export const zResetToken = z.object({
-  resetToken: z.string().length(128, "Invalid reset token format"),
-});
-
-const passwordResetTokens = new Map<string, string>();
-
-// Bangladesh phone regex (local format like 017xxxxxxxx)
-export const BDPhoneRegex = /^01[3-9]\d{8}$/;
-
-const moneyZ = z.coerce.number().min(0, "Amount cannot be negative");
-
-const ZSignin = z.object({
-  email: z.email(),
-  password: z.string().min(6).max(20),
-});
-export type ISignin = z.infer<typeof ZSignin>;
-
-const ZUserSchema = z.object({
-  name: z.string().min(3).max(225),
-  email: z.email(),
-  password: z.string().min(6).max(20),
-  organizationName: z.string().min(1),
-});
-
-const ZChangePassword = z
-  .object({
-    currentPassword: z.string().min(8).max(20),
-    newPassword: z.string().min(8).max(20),
-    confirmPassword: z.string().min(8).max(20),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
-
-export type TChangePassword = z.infer<typeof ZChangePassword>;
-
-const ZForgotPassword = z.object({
-  email: z.email(),
-});
-export type TForgotPassword = z.infer<typeof ZForgotPassword>;
-
-export type TUser = z.infer<typeof ZUserSchema>;
+import {
+  passwordResetTokens,
+  zChangePassword,
+  zForgotPassword,
+  zPasswordReset,
+  zResetToken,
+  zSignin,
+  zUserSchema,
+  type ISignin,
+  type TChangePassword,
+  type TForgotPassword,
+  type TUser,
+} from "validations/index.js";
 
 const signupService = async (body: TUser) => {
-  const data = ZUserSchema.safeParse(body);
+  const data = zUserSchema.safeParse(body);
 
   if (!data.success) {
     return {
@@ -157,7 +121,7 @@ const signupService = async (body: TUser) => {
 };
 
 const singinService = async (body: ISignin) => {
-  const data = ZSignin.safeParse(body);
+  const data = zSignin.safeParse(body);
   if (!data.success) {
     return {
       error: schemaValidationError(data.error, "Invalid request body"),
@@ -255,7 +219,7 @@ const changePassword = async ({
   body: TChangePassword;
 }) => {
   // Validate body
-  const data = ZChangePassword.safeParse(body);
+  const data = zChangePassword.safeParse(body);
   if (!data.success) {
     return {
       error: schemaValidationError(data.error, "Invalid request body"),
@@ -316,7 +280,7 @@ const changePassword = async ({
 };
 
 const forgotPassword = async (email: TForgotPassword) => {
-  const data = ZForgotPassword.safeParse({ email });
+  const data = zForgotPassword.safeParse({ email });
   if (!data.success) {
     return {
       error: schemaValidationError(data.error, "Invalid request body"),

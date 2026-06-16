@@ -5,16 +5,9 @@ import {
   timestamp,
   uuid,
   varchar,
+  real,
 } from "drizzle-orm/pg-core";
 
-export type User = {
-  id: number;
-  name: string;
-  email: string;
-  password: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
 export type Organizations = {
   id: number;
   name: string;
@@ -28,29 +21,6 @@ export type Memberships = {
   organizationId: number;
   role: "manager" | "employee";
   joinedAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-};
-export type Invitations = {
-  id: number;
-  organizationId: number;
-  email: string;
-  token: string;
-  status: "pending" | "accepted" | "declined";
-  createdAt: Date;
-  updatedAt: Date;
-};
-export type Tasks = {
-  id: number;
-  organizationId: number;
-  title: string;
-  description: string;
-  creatorId: number;
-  assignedTo: number | null;
-  status: "pending" | "in_progress" | "completed";
-  latitude: number | null;
-  longitude: number | null;
-  deadline: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -129,9 +99,9 @@ export const tasks = pgTable("tasks", {
   creatorId: uuid("creator_id").notNull(),
   assignedTo: uuid("assigned_to"),
   status: varchar("status", { length: 50 }).notNull(),
-  latitude: integer("latitude"),
-  longitude: integer("longitude"),
-  deadline: integer("deadline"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  deadline: timestamp("deadline"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
