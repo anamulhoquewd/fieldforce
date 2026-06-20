@@ -20,12 +20,13 @@ export const handleAxiosError = (error: any) => {
   if (error.response) {
     // Backend returns a response with status code (4xx, 5xx)
     toast.error(
-      error.response.data.error.message || "An error occurred on the server."
+      error.response?.data?.error?.message || "An error occurred on the server."
     )
 
     return {
       message:
-        error.response.data.error.message || "An error occurred on the server.",
+        error.response?.data?.error?.message ||
+        "An error occurred on the server.",
       status: error.response.status,
     }
   } else if (error.request) {

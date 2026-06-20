@@ -1,6 +1,8 @@
 import { Geist_Mono, Inter } from "next/font/google"
 
-import { ThemeProvider } from "@/components/theme-provider"
+import { GoogleMapsScript } from "@/components/google-maps-script"
+import { Providers } from "@/components/providers"
+import { BottomNavigation } from "@/components/worker/bottom-navigation"
 import { cn } from "@/lib/utils"
 import "./globals.css"
 
@@ -28,7 +30,9 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <GoogleMapsScript />
+        <Providers>{children}</Providers>
+        <BottomNavigation />
       </body>
     </html>
   )

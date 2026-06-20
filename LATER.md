@@ -45,6 +45,20 @@ wait until the MVP is done.
 - **Media messages** — Images, voice notes, file attachments.
 - **Message edit / delete / reactions.**
 
+## Query / Search / Filter / Pagination
+
+- **Status filter** — Filter tasks by status (`pending`, `in_progress`, `completed`) via query param (e.g. `?status=pending`).
+
+- **Title search** — Full-text or `ILIKE` search on task title (e.g. `?search=meter reading`).
+
+- **Pagination** — Limit results with `?page=1&limit=20` instead of returning all rows at once. Needs a total count in the response for the client to render page controls.
+
+- **Sorting** — Sort by `created_at`, `deadline`, or `status` via `?sortBy=deadline&order=asc`.
+
+> These apply primarily to the tasks list endpoint but the same pattern will be reused for invitations, locations history, and messages.
+
+---
+
 ## Platform / Admin
 
 - **Super-admin panel** — A separate dashboard for the software owner (me)

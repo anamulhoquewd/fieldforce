@@ -6,6 +6,7 @@ import invitationRoute from "./routes/invitations.js";
 import { cors } from "hono/cors";
 import { notFoundError } from "./errors/index.js";
 import taskRoute from "./routes/tasks.js";
+import membershipRoute from "./routes/memberships.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -39,6 +40,9 @@ app.route("/invitations", invitationRoute);
 
 // tasks route
 app.route("/tasks", taskRoute)
+
+// memberships
+app.route("/memberships", membershipRoute)
 
 // Global Error Handler
 app.onError((error: any, c) => {

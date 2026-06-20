@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import {
   integer,
   pgEnum,
@@ -127,3 +128,18 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  assignedWorker: one(users, {
+    fields: [tasks.assignedTo],
+    references: [users.id],
+  }),
+  creator: one(users, {
+    fields: [tasks.creatorId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [tasks.organizationId],
+    references: [organizations.id],
+  }),
+}));

@@ -15,3 +15,18 @@ export const singinSchema = z.object({
   password: z.string().min(6, "Password must be at least 8 characters").max(20),
 })
 export type SigninValues = z.infer<typeof singinSchema>
+
+export const zTasks = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  creatorId: z.string(),
+  assignedTo: z.string().optional(),
+  status: z.enum(["pending", "in_progress", "completed"]).default("pending"),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  deadline: z.date().optional(),
+})
+
+export type TTasks = z.infer<typeof zTasks>

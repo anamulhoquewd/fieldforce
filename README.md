@@ -11,6 +11,7 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Architecture Overview](#architecture-overview)
+- [Dual Interface Design](#dual-interface-design)
 - [Auth Strategy](#auth-strategy)
 - [Database Schema](#database-schema)
 - [API Endpoints](#api-endpoints)
@@ -30,7 +31,8 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 |---|---|---|---|
 | Frontend | Next.js (App Router) | 16.2.6 | React framework, SSR, routing |
 | Frontend UI | Tailwind CSS v4 + shadcn/ui | 4.x | Design system & components |
-| Forms | React Hook Form + Zod | — | Form state management + schema validation |
+| Forms | React Hook Form + Zod | — | Form state + schema validation |
+| State | React Context API | — | Auth state (user, role) |
 | Backend | Hono | 4.12.25 | Lightweight HTTP API server |
 | Backend Runtime | Node.js via `@hono/node-server` | 1.19.14 | Node adapter for Hono |
 | Backend Validation | Zod | — | Request body schema validation |
@@ -38,12 +40,12 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 | ORM | Drizzle ORM | 0.45.2 | Type-safe DB queries & migrations |
 | Cache / Session | Redis (Upstash) via ioredis | 5.11.1 | Session store, real-time pub/sub |
 | Password Hashing | bcrypt | — | Secure password hashing |
-| HTTP Client | axios | — | API calls from client with cookie support |
-| Toast | Sonner | — | Toast notifications on client |
-| Real-time | Socket.IO | — | Live location updates, chat (planned) |
-| Maps | Google Maps JavaScript API | — | Interactive map with markers (planned) |
+| HTTP Client | axios | — | API calls with cookie support |
+| Maps | Google Maps JavaScript API | — | Location picker, task map, navigation |
+| Toast | Sonner | — | Toast notifications |
+| Real-time | Socket.IO | — | Live location + chat (planned) |
 | File Storage | Cloudflare R2 | — | User uploads (planned) |
-| Email | Gmail SMTP | — | Invitations, notifications (planned) |
+| Email | Gmail SMTP | — | Invitations (planned) |
 
 ---
 
@@ -51,95 +53,134 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 
 ```
 fieldforce/
-├── client/                            # Next.js 16 frontend (App Router)
+├── client/                                   # Next.js 16 frontend
 │   ├── app/
 │   │   ├── auth/
-│   │   │   ├── signup/page.tsx        # [DONE] Signup page (form + hook)
-│   │   │   └── signin/page.tsx        # [DONE] Signin page (form + hook)
-│   │   ├── dashboard/
-│   │   │   ├── page.tsx               # [DONE] Dashboard home (signout button)
-│   │   │   ├── tasks/page.tsx         # [STUB] Task management page
-│   │   │   ├── map/page.tsx           # [STUB] Live location map page
-│   │   │   ├── chat/page.ts           # [STUB] Real-time chat page
-│   │   │   └── team/page.tsx          # [STUB] Team management page
-│   │   ├── globals.css                # [DONE] Global styles, Tailwind v4 theme
-│   │   ├── layout.tsx                 # [DONE] Root layout with ThemeProvider
-│   │   └── page.tsx                   # [DONE] Landing/home page
+│   │   │   ├── signup/page.tsx               # [DONE] Signup form page
+│   │   │   └── signin/page.tsx               # [DONE] Signin form page
+│   │   ├── dashboard/                        # Manager interface
+│   │   │   ├── layout.tsx                    # [DONE] Sidebar layout
+│   │   │   ├── page.tsx                      # [DONE] Manager dashboard home
+│   │   │   ├── tasks/page.tsx                # [DONE] Task table + create + edit panel
+│   │   │   ├── map/page.tsx                  # [STUB] Live map page
+│   │   │   ├── chat/page.tsx                 # [STUB] Manager chat page
+│   │   │   └── team/page.tsx                 # [STUB] Team management page
+│   │   ├── chat-list/page.tsx                # [DONE] Worker conversation list
+│   │   ├── chat/page.tsx                     # [DONE] Worker chat interface (mock data)
+│   │   ├── profile/page.tsx                  # [DONE] Worker profile + settings
+│   │   ├── tasks/[id]/page.tsx               # [DONE] Worker task detail page
+│   │   ├── globals.css                       # [DONE] Tailwind v4 + theme tokens
+│   │   ├── layout.tsx                        # [DONE] Root layout (Providers + GoogleMapsScript)
+│   │   └── page.tsx                          # [DONE] Worker home — task list with stats
 │   ├── components/
 │   │   ├── ui/
-│   │   │   ├── button.tsx             # [DONE] shadcn Button (CVA variants)
-│   │   │   ├── card.tsx               # [DONE] shadcn Card component
-│   │   │   ├── form.tsx               # [DONE] shadcn Form (react-hook-form integration)
-│   │   │   ├── input.tsx              # [DONE] shadcn Input component
-│   │   │   ├── label.tsx              # [DONE] shadcn Label component
-│   │   │   └── sonner.tsx             # [DONE] Sonner toast wrapper
+│   │   │   ├── avatar.tsx                    # [DONE] Avatar + AvatarGroup
+│   │   │   ├── breadcrumb.tsx                # [DONE] Breadcrumb nav
+│   │   │   ├── button.tsx                    # [DONE] Button (CVA variants)
+│   │   │   ├── card.tsx                      # [DONE] Card layout
+│   │   │   ├── collapsible.tsx               # [DONE] Collapsible/accordion
+│   │   │   ├── dropdown-menu.tsx             # [DONE] Dropdown menu system
+│   │   │   ├── form.tsx                      # [DONE] react-hook-form integration
+│   │   │   ├── input.tsx                     # [DONE] Input field
+│   │   │   ├── label.tsx                     # [DONE] Label
+│   │   │   ├── separator.tsx                 # [DONE] Horizontal/vertical divider
+│   │   │   ├── sheet.tsx                     # [DONE] Slide-out sheet/drawer
+│   │   │   ├── sidebar.tsx                   # [DONE] Full sidebar system
+│   │   │   ├── skeleton.tsx                  # [DONE] Loading skeleton
+│   │   │   ├── sonner.tsx                    # [DONE] Toast provider
+│   │   │   └── tooltip.tsx                   # [DONE] Tooltip
+│   │   ├── dashboard/
+│   │   │   └── manager-task-panel.tsx        # [DONE] Task edit side panel
+│   │   ├── worker/
+│   │   │   ├── bottom-navigation.tsx         # [DONE] Mobile tab bar
+│   │   │   ├── task-detail-sheet.tsx         # [DONE] Full-screen task detail
+│   │   │   └── task-map.tsx                  # [DONE] Google Maps task map
 │   │   ├── auth/
-│   │   │   └── signup.tsx             # [STUB] Reusable signup component
-│   │   └── theme-provider.tsx         # [DONE] Dark mode provider ('d' key toggle)
+│   │   │   └── signup.tsx                    # [STUB] Reusable signup component
+│   │   ├── app-sidebar.tsx                   # [DONE] Manager sidebar (nav + user)
+│   │   ├── create-task-modal.tsx             # [DONE] Task creation modal with maps
+│   │   ├── google-maps-script.tsx            # [DONE] Async Google Maps loader
+│   │   ├── nav-main.tsx                      # [DONE] Sidebar main nav items
+│   │   ├── nav-projects.tsx                  # [DONE] Sidebar projects section
+│   │   ├── nav-user.tsx                      # [DONE] Sidebar user footer
+│   │   ├── providers.tsx                     # [DONE] Root providers wrapper
+│   │   ├── roleGate.tsx                      # [DONE] Role-based render guard
+│   │   ├── team-switcher.tsx                 # [DONE] Sidebar team/org display
+│   │   └── theme-provider.tsx                # [DONE] Dark mode provider
+│   ├── context/
+│   │   └── authContext.ts                    # [DONE] AuthProvider + useUser hook
 │   ├── hooks/
-│   │   └── auth/
-│   │       ├── signup.ts              # [DONE] useSignup() hook
-│   │       ├── signin.ts              # [DONE] useSignin() hook
-│   │       └── signout.ts             # [DONE] useSignout() hook
+│   │   ├── auth/
+│   │   │   ├── signup.ts                     # [DONE] useSignup()
+│   │   │   ├── signin.ts                     # [DONE] useSignin()
+│   │   │   └── signout.ts                    # [DONE] useSignout()
+│   │   ├── dashboard/tasks/
+│   │   │   └── useTasks.ts                   # [DONE] Fetch task list
+│   │   ├── use-mobile.ts                     # [DONE] useIsMobile() hook
+│   │   ├── useUpdateTaskStatus.ts            # [DONE] Patch task status
+│   │   └── useWorkers.ts                     # [DONE] Fetch worker list
+│   ├── interfaces/
+│   │   └── index.ts                          # [DONE] ITask, IWorker, TaskStatus etc.
 │   ├── lib/
-│   │   ├── api.ts                     # [DONE] axios instance (withCredentials)
-│   │   └── utils.ts                   # [DONE] cn(), copyToClipboard(), handleAxiosError()
+│   │   ├── api.ts                            # [DONE] axios instance (withCredentials)
+│   │   └── utils.ts                          # [DONE] cn, handleAxiosError, etc.
 │   ├── validations/
-│   │   └── zod.ts                     # [DONE] Zod schemas: signupSchema, singinSchema
-│   ├── middleware.ts                   # [DONE] Next.js route protection middleware
-│   ├── .env                           # Frontend env vars (API_URL, SOCKET_URL)
-│   ├── .env.example                   # Env template
-│   ├── components.json                # shadcn/ui config
-│   ├── next.config.ts                 # Next.js config (empty, uses defaults)
-│   ├── postcss.config.mjs             # PostCSS with Tailwind v4 plugin
-│   ├── tsconfig.json                  # TypeScript config, @ alias
+│   │   └── zod.ts                            # [DONE] Zod schemas (auth + tasks)
+│   ├── middleware.ts                          # [DONE] Route protection middleware
+│   ├── .env                                  # Frontend env vars
+│   ├── components.json                       # shadcn/ui config
+│   ├── next.config.ts
 │   └── package.json
 │
-├── server/                            # Hono REST API server
+├── server/                                   # Hono REST API
 │   ├── src/
-│   │   ├── index.ts                   # [DONE] App entry — health + auth + invitation routes
+│   │   ├── index.ts                          # [DONE] Entry — CORS + all routes
 │   │   ├── db/
-│   │   │   ├── schema.ts              # [DONE] Drizzle schema — 7 tables + 2 pgEnums
-│   │   │   └── index.ts               # [DONE] PostgreSQL pool + Drizzle db instance
+│   │   │   ├── schema.ts                     # [DONE] 7 tables + 2 pgEnums + relations
+│   │   │   └── index.ts                      # [DONE] pg.Pool + Drizzle instance
 │   │   ├── errors/
-│   │   │   └── index.ts               # [DONE] Centralized HTTP error handler functions
+│   │   │   └── index.ts                      # [DONE] HTTP error handler functions
 │   │   ├── lib/
-│   │   │   ├── redis.ts               # [DONE] Redis client singleton
-│   │   │   ├── auth.ts                # [DONE] passwordHashingHelper, comparePassword, generateToken
-│   │   │   └── session.ts             # [DONE] Redis session create / get / delete
+│   │   │   ├── redis.ts                      # [DONE] Redis singleton
+│   │   │   ├── auth.ts                       # [DONE] bcrypt + token utils
+│   │   │   └── session.ts                    # [DONE] Redis session CRUD
 │   │   ├── middleware/
-│   │   │   ├── auth.ts                # [DONE] authMiddileware + requiredRoles (RBAC)
-│   │   │   └── requireRole.ts         # [STUB] Superseded by requiredRoles in auth.ts
+│   │   │   ├── auth.ts                       # [DONE] authMiddileware + requiredRoles
+│   │   │   └── requireRole.ts                # [STUB] Superseded
 │   │   ├── routes/
-│   │   │   ├── auth.ts                # [DONE] /api/v1/auth/* (signup, signin, signout, me)
-│   │   │   ├── invitations.ts         # [DONE] /api/v1/invitations/* (register, list, accept)
-│   │   │   ├── locations.ts           # [STUB] /api/v1/locations/*
-│   │   │   ├── messages.ts            # [STUB] /api/v1/messages/*
-│   │   │   └── tasks.ts               # [STUB] /api/v1/tasks/*
+│   │   │   ├── auth.ts                       # [DONE] /auth/*
+│   │   │   ├── invitations.ts                # [DONE] /invitations/*
+│   │   │   ├── tasks.ts                      # [DONE] /tasks/*
+│   │   │   ├── memberships.ts                # [DONE] /memberships/*
+│   │   │   ├── locations.ts                  # [STUB] /locations/*
+│   │   │   └── messages.ts                   # [STUB] /messages/*
 │   │   ├── controllers/
-│   │   │   ├── index.ts               # [DONE] Re-exports: auth, invitation
-│   │   │   ├── auth.ts                # [DONE] signupController, signinController, singoutController, fetchMe
-│   │   │   ├── invitations.ts         # [DONE] invitationController, listInvitationsController, acceptInvitationController
-│   │   │   ├── locations.ts           # [STUB] Location HTTP handlers
-│   │   │   ├── messages.ts            # [STUB] Message HTTP handlers
-│   │   │   └── tasks.ts               # [STUB] Task HTTP handlers
+│   │   │   ├── index.ts                      # [DONE] Re-exports all controllers
+│   │   │   ├── auth.ts                       # [DONE] signup/signin/signout/fetchMe
+│   │   │   ├── invitations.ts                # [DONE] create/list/accept
+│   │   │   ├── tasks.ts                      # [DONE] create/list/updateStatus/patch
+│   │   │   ├── memberships.ts                # [DONE] getWorkerController
+│   │   │   ├── locations.ts                  # [STUB]
+│   │   │   └── messages.ts                   # [STUB]
 │   │   └── services/
-│   │       ├── index.ts               # [DONE] Re-exports: auth, invitations
-│   │       ├── auth.ts                # [DONE] signupService, singinService + Zod schemas
-│   │       ├── invitations.ts         # [DONE] createInvitationService, acceptInvitationService, fetchInvitations
-│   │       ├── locations.ts           # [STUB] Location business logic
-│   │       ├── messages.ts            # [STUB] Message business logic
-│   │       └── tasks.ts               # [STUB] Task business logic
+│   │       ├── index.ts                      # [DONE] Re-exports all services
+│   │       ├── auth.ts                       # [DONE] signup/signin + password flows
+│   │       ├── invitations.ts                # [DONE] create/accept/fetchInvitations
+│   │       ├── tasks.ts                      # [DONE] create/list/updateStatus/patch
+│   │       ├── memberships.ts                # [DONE] getWorkersService
+│   │       ├── locations.ts                  # [STUB]
+│   │       └── messages.ts                   # [STUB]
+│   ├── validations/
+│   │   └── index.ts                          # [DONE] Centralized Zod schemas
 │   ├── types/
-│   │   └── index.ts                   # [DONE] Shared TypeScript types (IRoles)
-│   ├── .env                           # Server env vars (DB, Redis, API keys)
-│   ├── .env.example                   # Env template
-│   ├── drizzle.config.ts              # Drizzle ORM + migration config
-│   ├── tsconfig.json                  # TypeScript config, @ alias → src/*
+│   │   └── index.ts                          # [DONE] IRoles type
+│   ├── .env
+│   ├── drizzle.config.ts
 │   └── package.json
 │
-├── socket-server.ts                   # [STUB] Socket.IO server (real-time)
-└── README.md                          # This file
+├── LATER.md                                  # Deferred features log
+├── socket-server.ts                          # [STUB] Socket.IO server
+└── README.md
 ```
 
 ---
@@ -147,35 +188,50 @@ fieldforce/
 ## Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    Client (Next.js)                      │
-│  /auth/signup  /auth/signin  →  /dashboard/*            │
-│  middleware.ts guards routes (cookie check)             │
-│  axios (withCredentials) → Hono API  |  Socket.IO       │
-└───────────────────────┬──────────────────────────────────┘
-                        │ REST (port 8000)
-┌───────────────────────▼──────────────────────────────────┐
-│               Server (Hono API)                          │
-│  /api/v1/auth  /invitations  /tasks  /locations  ...    │
-│  Middleware: authMiddileware → requiredRoles (RBAC)      │
-│  Routes → Controllers → Services (Zod) → DB / Redis      │
-└────────┬──────────────────────┬───────────────────────────┘
-         │                      │
-┌────────▼──────┐   ┌───────────▼──────────────────────────┐
-│  PostgreSQL   │   │  Redis (Upstash)                      │
-│  (Neon)       │   │  session:{id} → { userId, orgId,      │
-│  Primary data │   │    role }  TTL: 7 days                │
-└───────────────┘   └──────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      Client (Next.js)                       │
+│                                                             │
+│  MANAGER                          WORKER                    │
+│  /dashboard/* (sidebar)           / (bottom nav)           │
+│   ├─ Tasks table + create         ├─ Task list + stats      │
+│   ├─ Map (stub)                   ├─ /tasks/[id] detail    │
+│   └─ Team / Chat (stub)           ├─ /chat-list + /chat    │
+│                                   └─ /profile              │
+│                                                             │
+│  middleware.ts — cookie route guard (Edge Runtime)          │
+│  AuthProvider — /auth/me on mount → user context           │
+│  axios (withCredentials) + Sonner toasts                   │
+└───────────────────────┬─────────────────────────────────────┘
+                        │ REST :8000
+┌───────────────────────▼─────────────────────────────────────┐
+│                   Server (Hono API)                         │
+│  CORS → Routes → authMiddileware → requiredRoles            │
+│  /auth  /invitations  /tasks  /memberships                  │
+│  Services use Zod safeParse → structured error returns      │
+└────────┬─────────────────────┬───────────────────────────────┘
+         │                     │
+┌────────▼──────┐  ┌───────────▼──────────────────────────────┐
+│  PostgreSQL   │  │  Redis (Upstash)                          │
+│  (Neon)       │  │  session:{hex64} → { userId, orgId, role}│
+│  7 tables     │  │  TTL: 7 days                             │
+└───────────────┘  └──────────────────────────────────────────┘
 ```
 
-### Multi-Tenancy Model
+---
 
-Every resource (Task, Location, Message, Invitation) belongs to an `Organization`. A `User` can be a member of multiple organizations through the `Memberships` table. The `role` field controls what the user can do within each organization.
+## Dual Interface Design
 
-```
-User ──── Memberships ──── Organization
-           (role: manager | worker)
-```
+FieldForce has two completely separate UIs sharing the same API:
+
+| | Manager | Worker |
+|---|---|---|
+| Entry point | `/dashboard` | `/` (root) |
+| Navigation | Collapsible sidebar | Mobile bottom tab bar |
+| Task view | Table with filter/search, create modal, edit panel | Card list with progress stats |
+| Task detail | Edit panel (side-by-side) | Full-screen sheet with map |
+| Maps | Google Maps in create modal (place autocomplete + pin) | Google Maps showing task location + navigate button |
+| Chat | Stub page | Conversation list + chat UI (mock data) |
+| Profile | — | Profile card + settings |
 
 ---
 
@@ -183,165 +239,122 @@ User ──── Memberships ──── Organization
 
 FieldForce uses **Redis-backed session authentication** (no JWT tokens).
 
-### How it works
+### Flow
 
 ```
-[POST /auth/signup or /auth/signin]
-        │
-        ▼
-  Zod schema validation → reject with field errors if invalid
-        │
-        ▼
-  Business logic (check email, hash password, query DB)
-        │
-        ▼
-  Create session in Redis:
-    Key:   session:{randomHex64}
-    Value: JSON { userId, organizationId, role }
-    TTL:   7 days
-        │
-        ▼
-  Set signed HTTP-only cookie:
-    Name:     session
-    Value:    sessionId (signed with SESSION_SECRET)
-    httpOnly: true  |  sameSite: Lax  |  maxAge: 7 days
-    secure:   true in production
-        │
-        ▼
-  Return user + org info as JSON
+POST /auth/signup or /auth/signin
+  → Zod validate → DB query → bcrypt → create Redis session
+  → set signed httpOnly cookie (7 days)
+  → return { user, org/role }
+
+GET request with cookie → authMiddileware
+  → getSignedCookie → redis.get("session:{id}")
+  → expired? delete cookie + 401
+  → found? c.set("user", session) → next()
+
+POST /auth/signout
+  → redis.del("session:{id}") + deleteCookie
 ```
 
-### Protected routes (server)
+### Client-side guard
 
-```
-Request → authMiddileware
-  getSignedCookie → validate signature
-  redis.get("session:{id}") → parse SessionData
-  null/expired? → delete cookie + 401
-  found? → c.set("user", session) → next()
-```
+`client/middleware.ts` (Next.js Edge Runtime) checks cookie presence:
+- No cookie on `/dashboard/*`, `/my-tasks`, `/team`, `/map`, `/chat` → redirect `/auth/signin?from=path`
+- Cookie on `/auth/signin` or `/auth/signup` → redirect `/dashboard`
+
+`AuthProvider` (`context/authContext.ts`) calls `GET /auth/me` on mount and stores full user object in React context.
 
 ### Role-based access
 
-```
-authMiddileware → requiredRoles("manager")
-  c.get("user").role — not in allowedRoles? → 403 Forbidden
-```
+Server: `requiredRoles("manager")` middleware on manager-only routes.
 
-### Route protection (client)
-
-`client/middleware.ts` runs on every matching request via Next.js Edge Runtime:
-- Unauthenticated user on `/dashboard/*`, `/my-tasks`, `/team`, `/map`, `/chat` → redirect to `/auth/signin?from=pathname`
-- Authenticated user on `/auth/signin` or `/auth/signup` → redirect to `/dashboard`
-
-### Signout
-
-```
-[POST /auth/signout]
-  redis.del("session:{id}")   ← server-side invalidation
-  deleteCookie("session")     ← client cookie cleared
-```
+Client: `<RoleGate allow={["manager"]}>` wraps UI elements — renders `null` (or fallback) if role doesn't match.
 
 ---
 
 ## Database Schema
 
-Defined in [server/src/db/schema.ts](server/src/db/schema.ts). DB instance in [server/src/db/index.ts](server/src/db/index.ts) uses `pg.Pool` + Drizzle with full schema for relational queries.
+Defined in [server/src/db/schema.ts](server/src/db/schema.ts).
 
 **pgEnums:**
-- `roleEnum` — `"manager" | "worker"` — used in `memberships.role` and `invitations.role`
-- `invitationStatuses` — `"pending" | "accepted" | "declined"` — used in `invitations.status`
+- `roleEnum` — `"manager" | "worker"`
+- `invitationStatuses` — `"pending" | "accepted" | "declined"`
 
 ### `users`
-
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key, auto-generated |
-| `name` | VARCHAR(255) | Required |
-| `email` | VARCHAR(255) | Unique, required |
+| `id` | UUID | PK, auto |
+| `name` | VARCHAR(255) | |
+| `email` | VARCHAR(255) | Unique |
 | `password` | VARCHAR(255) | bcrypt hashed |
-| `created_at` | TIMESTAMP | Auto set |
-| `updated_at` | TIMESTAMP | Auto set |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
 ### `organizations`
-
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `name` | VARCHAR(255) | Organization name |
-| `owner_id` | UUID | FK → users.id (creator / first manager) |
+| `id` | UUID | PK |
+| `name` | VARCHAR(255) | |
+| `owner_id` | UUID | FK → users |
 | `created_at` | TIMESTAMP | |
 | `updated_at` | TIMESTAMP | |
 
 ### `memberships`
-
-Links users to organizations with a role.
-
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `user_id` | UUID | FK → users.id |
-| `organization_id` | UUID | FK → organizations.id |
-| `role` | ENUM (`roleEnum`) | `"manager"` or `"worker"` |
+| `id` | UUID | PK |
+| `user_id` | UUID | FK → users |
+| `organization_id` | UUID | FK → organizations |
+| `role` | ENUM (`roleEnum`) | `manager` or `worker` |
 | `joined_at` | TIMESTAMP | |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
 
 ### `invitations`
-
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `organization_id` | UUID | FK → organizations.id |
-| `email` | VARCHAR(255) | Invitee email |
-| `token` | VARCHAR(255) | Secure random hex token (64 chars) |
-| `role` | ENUM (`roleEnum`) | Role the invitee will receive |
-| `status` | ENUM (`invitationStatuses`) | `"pending"` (default) / `"accepted"` / `"declined"` |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
+| `id` | UUID | PK |
+| `organization_id` | UUID | FK → organizations |
+| `email` | VARCHAR(255) | |
+| `token` | VARCHAR(255) | 64-char hex |
+| `role` | ENUM (`roleEnum`) | Role on accept |
+| `status` | ENUM (`invitationStatuses`) | Default `"pending"` |
 
 ### `tasks`
-
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `organization_id` | UUID | FK → organizations.id |
-| `title` | VARCHAR(255) | Task title |
-| `description` | VARCHAR(1000) | Detailed description |
-| `creator_id` | UUID | FK → users.id (manager) |
-| `assigned_to` | UUID | FK → users.id (worker, nullable) |
-| `status` | VARCHAR(50) | `"pending"` / `"in_progress"` / `"completed"` |
-| `latitude` | INTEGER | Task site location (nullable) |
-| `longitude` | INTEGER | Task site location (nullable) |
-| `deadline` | INTEGER | Unix timestamp (nullable) |
+| `id` | UUID | PK |
+| `organization_id` | UUID | FK → organizations |
+| `title` | VARCHAR(255) | |
+| `description` | VARCHAR(1000) | |
+| `creator_id` | UUID | FK → users (manager) |
+| `assigned_to` | UUID | FK → users (nullable) |
+| `status` | VARCHAR(50) | `pending` / `in_progress` / `completed` |
+| `latitude` | INTEGER | Nullable |
+| `longitude` | INTEGER | Nullable |
+| `deadline` | INTEGER | Unix timestamp, nullable |
 | `created_at` | TIMESTAMP | |
 | `updated_at` | TIMESTAMP | |
+
+**Relations defined:** `tasks.assignedWorker`, `tasks.creator`, `tasks.organization` (used in Drizzle relational queries)
 
 ### `locations`
-
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `user_id` | UUID | FK → users.id |
-| `organization_id` | UUID | FK → organizations.id |
-| `latitude` | INTEGER | GPS latitude |
-| `longitude` | INTEGER | GPS longitude |
-| `recorded_at` | TIMESTAMP | When the GPS fix was captured |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
+| `id` | UUID | PK |
+| `user_id` | UUID | FK → users |
+| `organization_id` | UUID | FK → organizations |
+| `latitude` | INTEGER | |
+| `longitude` | INTEGER | |
+| `recorded_at` | TIMESTAMP | |
 
 ### `messages`
-
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `organization_id` | UUID | FK → organizations.id |
-| `sender_id` | UUID | FK → users.id |
-| `receiver_id` | UUID | FK → users.id |
-| `content` | VARCHAR(1000) | Message body |
+| `id` | UUID | PK |
+| `organization_id` | UUID | FK → organizations |
+| `sender_id` | UUID | FK → users |
+| `receiver_id` | UUID | FK → users |
+| `content` | VARCHAR(1000) | |
 | `read_at` | TIMESTAMP | NULL until read |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
 
 ---
 
@@ -349,86 +362,66 @@ Links users to organizations with a role.
 
 Base path: `/api/v1`
 
-### Health Check
-
-| Method | Path | Auth | Status | Description |
-|---|---|---|---|---|
-| GET | `/health` | None | **DONE** | Returns `"Server is healthy!"` |
+### Health
+| Method | Path | Auth | Status |
+|---|---|---|---|
+| GET | `/health` | None | **DONE** |
 
 ### Auth
-
 | Method | Path | Auth | Status | Description |
 |---|---|---|---|---|
-| POST | `/auth/signup` | None | **DONE** | Register user + org + set session cookie |
-| POST | `/auth/signin` | None | **DONE** | Login + set session cookie |
-| POST | `/auth/signout` | Cookie | **DONE** | Delete Redis session + clear cookie |
-| GET | `/auth/me` | Cookie | **DONE** | Return current user from session |
-
-**Signup request body:**
-```json
-{
-  "name": "Anamul Hoque",
-  "email": "user@example.com",
-  "password": "secret123",
-  "organizationName": "My Company"
-}
-```
-
-**Error response format (Zod validation failure):**
-```json
-{
-  "success": false,
-  "error": { "message": "Invalid request body", "code": 400 },
-  "fields": [
-    { "name": "email", "message": "Invalid email" }
-  ]
-}
-```
+| POST | `/auth/signup` | None | **DONE** | Register + org + session cookie |
+| POST | `/auth/signin` | None | **DONE** | Login + session cookie |
+| POST | `/auth/signout` | Cookie | **DONE** | Delete session + clear cookie |
+| GET | `/auth/me` | Cookie | **DONE** | Current user from session |
 
 ### Invitations
-
 | Method | Path | Auth | Role | Status | Description |
 |---|---|---|---|---|---|
-| POST | `/invitations/register` | Cookie | manager | **DONE** | Create invitation + return invite link |
-| GET | `/invitations/list` | Cookie | manager | **DONE** | List all org invitations |
-| POST | `/invitations/accept` | None | — | **DONE** | Accept invite → create user + session |
-| POST | `/invitations/decline` | None | — | STUB | Decline an invitation |
+| POST | `/invitations/register` | Cookie | manager | **DONE** | Create invite + return link |
+| GET | `/invitations/list` | Cookie | manager | **DONE** | List org invitations |
+| POST | `/invitations/accept` | None | — | **DONE** | Accept → create user + session |
+| POST | `/invitations/decline` | None | — | STUB | Decline invitation |
 
-**`POST /invitations/register` body:**
+### Tasks
+| Method | Path | Auth | Role | Status | Description |
+|---|---|---|---|---|---|
+| POST | `/tasks/register` | Cookie | manager | **DONE** | Create task (with optional assignee + location) |
+| GET | `/tasks/list` | Cookie | any | **DONE** | List tasks — managers see all, workers see assigned |
+| PATCH | `/tasks/:id/status` | Cookie | any | **DONE** | Update task status (workers: own tasks only) |
+| PATCH | `/tasks/:id` | Cookie | manager | **DONE** | Full update — status + assignedTo together |
+
+**Request body for `POST /tasks/register`:**
 ```json
-{ "email": "worker@example.com", "role": "worker" }
+{
+  "title": "Meter Reading – Zone 4",
+  "description": "Read electric meters on block D.",
+  "assignedTo": "uuid-of-worker",
+  "status": "pending",
+  "latitude": 23.8103,
+  "longitude": 90.4125,
+  "deadline": 1751234567
+}
 ```
 
-**`POST /invitations/accept` body:**
-```json
-{ "token": "abc123...", "name": "Field Worker", "password": "secret123" }
-```
-
-### Tasks — `[STUB]`
-
-| Method | Path | Auth | Role | Description |
-|---|---|---|---|---|
-| POST | `/tasks` | Cookie | manager | Create a new task |
-| GET | `/tasks` | Cookie | any | List tasks (role-filtered) |
-| GET | `/tasks/:id` | Cookie | any | Get task details |
-| PATCH | `/tasks/:id` | Cookie | any | Update task (status / assignment) |
-| DELETE | `/tasks/:id` | Cookie | manager | Delete a task |
+### Memberships
+| Method | Path | Auth | Role | Status | Description |
+|---|---|---|---|---|---|
+| GET | `/memberships/workers` | Cookie | manager | **DONE** | List all workers in the org |
 
 ### Locations — `[STUB]`
-
-| Method | Path | Auth | Role | Description |
-|---|---|---|---|---|
-| POST | `/locations` | Cookie | worker | Push current GPS coordinates |
-| GET | `/locations` | Cookie | manager | Get latest location for all team members |
-| GET | `/locations/:userId` | Cookie | manager | Get location history for one user |
+| Method | Path | Description |
+|---|---|---|
+| POST | `/locations` | Worker pushes GPS coordinates |
+| GET | `/locations` | Manager gets latest team locations |
+| GET | `/locations/:userId` | Manager gets user location history |
 
 ### Messages — `[STUB]`
-
-| Method | Path | Auth | Role | Description |
-|---|---|---|---|---|
-| POST | `/messages` | Cookie | any | Send a direct message |
-| GET | `/messages/:userId` | Cookie | any | Get conversation with a user |
-| PATCH | `/messages/:id/read` | Cookie | any | Mark message as read |
+| Method | Path | Description |
+|---|---|---|
+| POST | `/messages` | Send DM |
+| GET | `/messages/:userId` | Get conversation |
+| PATCH | `/messages/:id/read` | Mark as read |
 
 ---
 
@@ -443,17 +436,14 @@ CLIENT_ORIGIN=http://localhost:3000
 
 DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
 REDIS_URL=rediss://user:pass@host:6380
-
-# Used to sign session cookies — must be a long random string
-SESSION_SECRET=your-random-secret-here
+SESSION_SECRET=your-long-random-secret
 
 EMAIL_USER=your@gmail.com
 EMAIL_PASS=your-gmail-app-password
-
 GOOGLE_MAPS_API_KEY=your-key
 
-R2_ACCESS_KEY=your-key
-R2_SECRET_KEY=your-secret
+R2_ACCESS_KEY=key
+R2_SECRET_KEY=secret
 R2_ENDPOINT=https://account-id.r2.cloudflarestorage.com
 R2_BUCKET=fieldforce
 ```
@@ -463,6 +453,7 @@ R2_BUCKET=fieldforce
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_SOCKET_URL=http://localhost:8000
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-key
 ```
 
 ---
@@ -471,34 +462,30 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:8000
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm 9+
-- PostgreSQL database (Neon recommended)
-- Redis instance (Upstash recommended)
+- Node.js 20+, pnpm 9+
+- Neon PostgreSQL database
+- Upstash Redis instance
+- Google Maps API key (Maps JavaScript API + Places API enabled)
 
 ### Install & Run
 
 ```bash
 # Server
-cd server
-cp .env.example .env     # fill in your values
-pnpm install
-pnpm dev                 # starts on http://localhost:8000
+cd server && cp .env.example .env
+pnpm install && pnpm dev          # http://localhost:8000
 
 # Client (new terminal)
-cd client
-cp .env.example .env
-pnpm install
-pnpm dev                 # starts on http://localhost:3000
+cd client && cp .env.example .env
+pnpm install && pnpm dev          # http://localhost:3000
 ```
 
 ### Database Migrations
 
 ```bash
 cd server
-pnpm drizzle-kit generate   # generate SQL migration files
-pnpm drizzle-kit migrate    # apply migrations to Neon DB
-pnpm drizzle-kit studio     # open Drizzle Studio in browser
+pnpm drizzle-kit generate
+pnpm drizzle-kit migrate
+pnpm drizzle-kit studio           # browser UI
 ```
 
 ---
@@ -509,210 +496,116 @@ pnpm drizzle-kit studio     # open Drizzle Studio in browser
 
 ---
 
-#### `src/errors/index.ts` — Centralized Error Handlers [DONE]
+#### `src/index.ts` — App Entry [DONE]
 
-All HTTP error responses go through these functions. Every controller uses them instead of `c.json(...)` directly, ensuring a consistent response shape.
+- CORS middleware with `CLIENT_ORIGIN` whitelist, `credentials: true`
+- Routes: `/auth`, `/invitations`, `/tasks`, `/memberships`
+- Global 404 handler via `notFoundError`
+- Starts on `PORT`
 
-| Function | Status | Response Shape |
+---
+
+#### `src/errors/index.ts` — Error Handlers [DONE]
+
+Consistent JSON response shapes for every error type. All controllers use these.
+
+| Function | Status | Shape |
 |---|---|---|
-| `serverError(c, error)` | 500 | `{ success, message, stack }` (stack hidden in production) |
+| `serverError(c, err)` | 500 | `{ success, message, stack? }` |
 | `badRequestError(c, { message, fields })` | 400 | `{ success, error: { message, code }, fields }` |
-| `conflictError(c, { message, fields })` | 409 | `{ success, error: { message, code }, fields }` |
-| `notFoundError(c)` | 404 | `{ success, message: "Not Found - [METHOD] URL" }` |
+| `conflictError(c, { message, fields })` | 409 | same as above with code 409 |
+| `notFoundError(c)` | 404 | `{ success, message }` |
 | `authenticationError(c, message)` | 401 | `{ success, error: { message, code } }` |
-| `authorizationError(c, message)` | 403 | `{ success, error: { message, code } }` |
-| `schemaValidationError(zodError, message)` | — | Converts Zod `.issues` → `{ message, fields: [{ name, message }] }` |
-
-`schemaValidationError` is a helper (not a Hono handler) — it converts a Zod parse error into the `fields` format used by `badRequestError`. Services call it and return `{ error }` which controllers pass to `badRequestError`.
+| `authorizationError(c, message)` | 403 | same |
+| `schemaValidationError(zodErr, msg)` | helper | Converts Zod issues → `{ message, fields[] }` |
 
 ---
 
-#### `src/db/index.ts` — DB Instance [DONE]
+#### `server/validations/index.ts` — Centralized Zod Schemas [DONE]
 
-```ts
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-export const db = drizzle(pool, { schema })
-```
+All Zod schemas live here (moved from individual service files).
 
-Throws on startup if `DATABASE_URL` is missing. Imported by all services.
-
----
-
-#### `src/db/schema.ts` — Database Schema [DONE]
-
-Defines 2 pgEnums + 7 Drizzle table definitions + TypeScript types. Import in services:
-
-```ts
-import { users, tasks, memberships, invitations } from '@/db/schema.js'
-```
-
----
-
-#### `src/lib/redis.ts` — Redis Client [DONE]
-
-Singleton `redis` ioredis instance connected via `REDIS_URL`.
-
----
-
-#### `src/lib/auth.ts` — Auth Utilities [DONE]
-
-| Function | Description |
+| Schema | Used for |
 |---|---|
-| `passwordHashingHelper(password)` | bcrypt hash with 10 salt rounds. Throws on empty/non-string input. |
-| `comparePassword(password, hash)` | bcrypt compare. Throws on invalid inputs. |
-| `generateToken(byteLength?)` | Cryptographically secure random hex. Default 32 bytes = 64 hex chars. |
+| `ZUserSchema` / `TUser` | Signup |
+| `ZSignin` / `ISignin` | Signin |
+| `ZChangePassword` / `TChangePassword` | Password change |
+| `ZForgotPassword` / `TForgotPassword` | Forgot password |
+| `zPasswordReset` | Reset password |
+| `zResetToken` | Token validation |
+| `zTasks` | Task create/update |
+| `BDPhoneRegex` | BD phone number validation |
 
 ---
 
-#### `src/lib/session.ts` — Session Management [DONE]
+#### `src/services/tasks.ts` — Task Service [DONE]
 
-Redis session store. Key pattern: `session:{id}`. Default TTL: 7 days.
+All functions validate input via `zTasks.safeParse` and return `{ error }` / `{ serverError }` / success.
 
-```ts
-type SessionData = { userId: string; organizationId: string; role: "manager" | "worker" }
-```
+**`taskCreateService({ user, body })`**
+1. Zod validates body (title required, status enum, optional assignedTo/lat/lng/deadline)
+2. If `assignedTo` provided → verifies that user is a worker in the same org
+3. Inserts task with `organizationId` and `creatorId` from session
+4. Returns created task
 
-| Function | Description |
-|---|---|
-| `createSession(data, ttl?)` | Generates 64-char hex ID, stores JSON in Redis, returns sessionId. Optional custom TTL. |
-| `getSession(sessionId)` | Reads and parses session. Returns `null` if expired or not found. |
-| `deleteSession(sessionId)` | Removes session from Redis. Called on signout. |
+**`fetchTasksService({ user })`**
+1. Manager → fetches all org tasks with relations (assignedWorker, creator, organization)
+2. Worker → fetches only tasks where `assigned_to = userId`
+3. Returns array of `ITask` with nested relations
 
----
+**`updateTaskService({ user, taskId, body })`**
+- Updates only `status` field
+- Worker: can only update their own assigned task
+- Manager: can update any task in org
 
-#### `src/middleware/auth.ts` — Auth + RBAC Middleware [DONE]
-
-**`authMiddileware`**
-1. Reads signed `session` cookie via `SESSION_SECRET`
-2. Missing cookie → `401 Unauthorized`
-3. Calls `getSession(sessionId)` — Redis lookup
-4. Not found (expired) → deletes stale cookie + `401 Session expired`
-5. Found → `c.set("user", session)` → `next()`
-
-**`requiredRoles(...allowedRoles)`**
-- Factory: returns a Hono middleware
-- Reads `c.get("user").role` — checks against `allowedRoles`
-- Fails → `403 Forbidden: insufficient permissions`
-- Must be placed after `authMiddileware`
-
-```ts
-route.post("/register", authMiddileware, requiredRoles("manager"), handler)
-```
+**`patchTaskService({ user, taskId, body })`**
+- Manager-only: updates both `status` and `assignedTo` atomically
+- Validates new assignee is a worker in the org before updating
 
 ---
 
-#### `src/routes/auth.ts` — Auth Routes [DONE]
+#### `src/services/memberships.ts` — Membership Service [DONE]
+
+**`getWorkersService({ organizationId })`**
+- Queries `memberships` joined with `users` where `role = "worker"` and `organizationId` matches
+- Returns `[{ id, name, email, role }]` — used to populate assignee dropdowns on the client
+
+---
+
+#### `src/routes/tasks.ts` — Task Routes [DONE]
 
 | Method | Path | Middleware | Handler |
 |---|---|---|---|
-| POST | `/signup` | — | `auth.signupController` |
-| POST | `/signin` | — | `auth.signinController` |
-| POST | `/signout` | — | `auth.singoutController` |
-| GET | `/me` | `authMiddileware` | `auth.fetchMe` |
+| POST | `/register` | `authMiddileware`, `requiredRoles("manager")` | `tasksController` |
+| GET | `/list` | `authMiddileware` | `fetchTasksController` |
+| PATCH | `/:id/status` | `authMiddileware` | `taskUpdateController` |
+| PATCH | `/:id` | `authMiddileware`, `requiredRoles("manager")` | `taskPatchController` |
 
 ---
 
-#### `src/controllers/auth.ts` — Auth Controllers [DONE]
+#### `src/routes/memberships.ts` — Membership Routes [DONE]
 
-All controllers use `badRequestError`, `serverError`, `authenticationError` from `errors/index.ts`. Services return `{ error }`, `{ serverError }`, or a success object — controllers branch on these.
-
-**`signupController`** — calls `auth.signupService(body)` → sets signed cookie on success → `201`
-
-**`signinController`** — calls `auth.singinService(body)` → sets signed cookie on success → `201`
-
-**`singoutController`** — reads cookie → `deleteSession` on Redis → clears cookie → `200`
-
-**`fetchMe`** — reads `c.get("user")` (set by middleware) → returns user session data → `200`
+| Method | Path | Middleware | Handler |
+|---|---|---|---|
+| GET | `/workers` | `authMiddileware`, `requiredRoles("manager")` | `getWorkerController` |
 
 ---
 
 #### `src/services/auth.ts` — Auth Service [DONE]
 
-All functions validate input with Zod (`safeParse`) and return structured objects instead of throwing. Controllers check the return value and call the right error handler.
+**Exported:** `signupService`, `singinService`
 
-**Exported:**
-
-**`signupService(body)`** — Zod schema: `{ name (min 3), email, password (6–20), organizationName }`
-1. Validates body with `ZUserSchema.safeParse` → returns `{ error }` on failure
-2. Checks for duplicate email
-3. Hashes password
-4. DB transaction: insert user → insert organization → insert membership (role: `"manager"`)
-5. Creates Redis session → returns `{ success, data: { sessionId, user, organization } }`
-
-**`singinService(body)`** — Zod schema: `{ email, password (6–20) }`
-1. Validates body with `ZSignin.safeParse`
-2. Queries user by email — returns generic `"Invalid credentials"` error (no user enumeration)
-3. bcrypt compare — same generic error on mismatch
-4. Queries membership → creates Redis session → returns `{ success, data: { sessionId, user, role } }`
-
-**Not yet wired to routes (defined but not exported):**
-- `changePassword({ user, body })` — validates `{ currentPassword, newPassword, confirmPassword }` with Zod; updates password in DB
-- `forgotPassword(email)` — generates reset token stored in in-memory Map; builds reset URL
-- `resetPassword({ password, resetToken })` — validates token from Map; updates hashed password in DB
+**Defined but not yet exposed via routes:**
+- `changePassword({ user, body })` — ZChangePassword validation, updates password in DB
+- `forgotPassword(email)` — generates 128-char reset token, stores in in-memory Map, builds reset URL
+- `resetPassword({ password, resetToken })` — validates token, hashes new password, updates DB, deletes token
 
 ---
 
-#### `src/routes/invitations.ts` — Invitation Routes [DONE]
+#### `src/middleware/auth.ts` — Auth + RBAC [DONE]
 
-| Method | Path | Middleware | Handler |
-|---|---|---|---|
-| POST | `/register` | `authMiddileware`, `requiredRoles("manager")` | `invitation.invitationController` |
-| GET | `/list` | `authMiddileware`, `requiredRoles("manager")` | `invitation.listInvitationsController` |
-| POST | `/accept` | — | `invitation.acceptInvitationController` |
-
----
-
-#### `src/controllers/invitations.ts` — Invitation Controllers [DONE]
-
-**`invitationController`** — reads `user.organizationId` from session context → calls `createInvitationService` → `201`
-
-**`listInvitationsController`** — reads `user.organizationId` → calls `fetchInvitations` from service → returns list
-
-**`acceptInvitationController`** — parses body → calls `acceptInvitationService` → sets signed session cookie on success → `201`
-
----
-
-#### `src/services/invitations.ts` — Invitation Service [DONE]
-
-All functions use Zod `safeParse` and return `{ error }` / `{ serverError }` / success.
-
-**`createInvitationService(body)`** — Zod: `{ organizationId, email, role: enum }`
-1. Generates 64-char token
-2. Inserts invitation: `{ organizationId, email, token, role, status: "pending" }`
-3. Returns invitation + `inviteLink = {CLIENT_ORIGIN}/join?token={token}`
-
-> Email sending not yet implemented — invite link is returned in the API response for now.
-
-**`acceptInvitationService(body)`** — Zod: `{ token, password (6–20), name (min 3) }`
-1. Looks up invitation by token → error if not found
-2. Checks `status === "pending"` → error if already used
-3. Checks no existing user with that email
-4. Hashes password → DB transaction: insert user + membership + mark invite `"accepted"`
-5. Creates Redis session → returns `{ sessionId, user, role }`
-
-**`fetchInvitations({ organizationId })`**
-- Queries all invitations for the org (any status)
-- Returns `{ success, data: [...] }`
-
----
-
-#### `server/types/index.ts` — Shared Types [DONE]
-
-```ts
-export interface IRoles {
-  role: "manager" | "worker"
-}
-```
-
----
-
-#### Remaining Stubs
-
-| Module | Planned Functions |
-|---|---|
-| `services/tasks.ts` | `createTask`, `listTasks`, `updateTask`, `deleteTask` |
-| `services/locations.ts` | `saveLocation`, `getTeamLocations`, `getUserHistory` |
-| `services/messages.ts` | `sendMessage`, `getConversation`, `markRead` |
+**`authMiddileware`** — reads signed cookie → Redis session lookup → attaches user to context  
+**`requiredRoles(...roles)`** — factory middleware, reads `c.get("user").role` → 403 if not allowed
 
 ---
 
@@ -720,157 +613,275 @@ export interface IRoles {
 
 ---
 
+#### `context/authContext.ts` — Auth Context [DONE]
+
+`AuthProvider` component:
+- Calls `GET /auth/me` on mount to hydrate user state
+- Provides `{ user, loading, refresh, logout }` to all children
+- `user` shape: `{ userId, organizationId, role }`
+
+`useUser()` hook — accesses context; throws if called outside `AuthProvider`.
+
+```tsx
+const { user, loading } = useUser()
+// user.role === "manager" | "worker"
+```
+
+---
+
+#### `interfaces/index.ts` — TypeScript Interfaces [DONE]
+
+| Export | Description |
+|---|---|
+| `TaskStatus` | `"pending" \| "in_progress" \| "completed" \| "cancelled"` |
+| `IWorker` | `{ id, name, email, role }` |
+| `ICreator` | `{ id, name, email }` |
+| `IOrganization` | `{ id, name }` |
+| `ITask` | Full task with relations: `assignedWorker?: IWorker`, `creator: ICreator`, `organization: IOrganization` |
+
+---
+
 #### `middleware.ts` — Route Protection [DONE]
 
-Next.js Edge Runtime middleware. Runs on every request matching the `config.matcher`.
+Next.js Edge Runtime. Checks `session` cookie presence.
+- `/dashboard/*`, `/my-tasks`, `/team`, `/map`, `/chat` — protected, redirect to `/auth/signin?from=path`
+- `/auth/signin`, `/auth/signup` — auth-only, redirect to `/dashboard` if already logged in
 
-**Protected routes** (require session cookie): `/dashboard/*`, `/my-tasks`, `/team`, `/map`, `/chat`
-- No cookie → redirect to `/auth/signin?from={pathname}`
+---
 
-**Auth routes** (redirect if already logged in): `/auth/signin`, `/auth/signup`
-- Cookie present → redirect to `/dashboard`
+#### `components/providers.tsx` — Root Providers [DONE]
 
-```ts
-const sessionCookie = request.cookies.get("session")
-const isLoggedIn = Boolean(sessionCookie)
+Wraps the entire app with:
+1. `TooltipProvider` (Radix)
+2. `ThemeProvider` (next-themes)
+3. `AuthProvider` (auth context)
+4. `Sonner` toaster (top-right, rich colors)
+
+---
+
+#### `components/roleGate.tsx` — RBAC Guard [DONE]
+
+```tsx
+<RoleGate allow={["manager"]} fallback={<p>No access</p>}>
+  <ManagerOnlyContent />
+</RoleGate>
 ```
 
-> Note: This only checks cookie presence, not validity. Full validation happens server-side via `authMiddileware`.
+Reads `useUser()`. Returns `null` (or `fallback`) if user's role is not in `allow`. Returns `null` during loading.
 
 ---
 
-#### `lib/api.ts` — Axios Instance [DONE]
+#### `components/google-maps-script.tsx` — Maps Loader [DONE]
+
+Loads Google Maps JS API via Next.js `<Script>` (strategy: `afterInteractive`). On load, dispatches `"google-maps-loaded"` custom event so other components can safely initialize map instances.
+
+---
+
+#### `components/app-sidebar.tsx` — Manager Sidebar [DONE]
+
+Sidebar structure for the manager dashboard. Uses `SidebarProvider` context.
+
+Sections:
+- **Header**: `TeamSwitcher` (org name + logo)
+- **Main nav**: Dashboard, Maps, Tasks, Team, Chats (with icons)
+- **Projects**: Empty array (placeholder)
+- **Footer**: `NavUser` (user name + email)
+
+Collapsed state shows icons only. Mobile: drawer with overlay.
+
+---
+
+#### `components/create-task-modal.tsx` — Create Task Modal [DONE]
+
+Dialog modal for managers to create tasks. Fields:
+- Title (required)
+- Description
+- Assignee — worker dropdown from `useWorkers()`
+- Status — `pending / in_progress / completed`
+- Deadline — date picker
+- Location — Google Places autocomplete input + mini map with draggable marker pin + "Use current location" button (Geolocation API)
+
+On submit: `POST /tasks/register` → calls `onCreated()` callback → closes modal.
+
+---
+
+#### `components/dashboard/manager-task-panel.tsx` — Task Edit Panel [DONE]
+
+Right-side slide-in panel for managers editing a selected task. Backdrop dismissal.
+
+- **Editable:** `status` (dropdown), `assignedTo` (worker dropdown from `useWorkers()`)
+- **Read-only display:** description, deadline, location coords, creator name, created date
+- Save → `PATCH /tasks/:id` with both fields
+- Dirty state indicator when values have changed
+
+---
+
+#### `components/worker/bottom-navigation.tsx` — Mobile Tab Bar [DONE]
+
+Fixed bottom navigation for workers (mobile-only). Three tabs:
+- My Tasks → `/`
+- Chat → `/chat-list` (with unread badge)
+- Profile → `/profile`
+
+Active tab highlighted. Icon + label per tab.
+
+---
+
+#### `components/worker/task-detail-sheet.tsx` — Task Detail Sheet [DONE]
+
+Full-screen slide-up sheet (mobile) for workers viewing a task. Features:
+- Sticky header with back button + task title
+- `TaskMap` component if lat/lng present
+- Status indicator + colored badge
+- Task metadata: location address, deadline (with overdue warning), assigned by
+- Description
+- Action buttons:
+  - Status progression: `pending → in_progress → completed`
+  - "Navigate" → opens Google Maps directions URL
+
+Uses `useUpdateTaskStatus` hook. Handles scroll lock on open.
+
+---
+
+#### `components/worker/task-map.tsx` — Task Map [DONE]
+
+Google Maps component. Initializes `google.maps.Map` centered on `{ lat, lng }` with a marker. Listens for `"google-maps-loaded"` event if API not yet ready. Re-initializes on coordinate changes.
+
+---
+
+#### `app/page.tsx` — Worker Home [DONE]
+
+Worker's primary task list screen (route: `/`). Features:
+- Progress bar: completed / total tasks
+- Stats row: done today, on-time %, this week
+- Task cards: status badge, title, location, deadline (overdue warning)
+- Loading skeleton while fetching
+- Empty state when no tasks
+- Tap a task card → opens `TaskDetailSheet`
+
+Uses `useTasks()` hook.
+
+---
+
+#### `app/dashboard/layout.tsx` — Dashboard Layout [DONE]
+
+Wraps all `/dashboard/*` pages with `SidebarProvider` → `AppSidebar` + `SidebarInset` (main content area). Provides the sidebar context for collapsible behavior.
+
+---
+
+#### `app/dashboard/page.tsx` — Manager Dashboard Home [DONE]
+
+Manager's dashboard overview. Breadcrumb navigation header. Grid of placeholder cards (future: analytics, stats, quick actions).
+
+---
+
+#### `app/dashboard/tasks/page.tsx` — Manager Task Page [DONE]
+
+Full task management interface for managers:
+- **Filter bar**: status tabs (All / Pending / In Progress / Completed) + title search input
+- **Task table**: assignee avatar + name, status badge, lat/lng, deadline (overdue indicator), created date
+- **Create button** → opens `CreateTaskModal`
+- **Row click** → opens `ManagerTaskPanel` (right-side edit panel)
+- Loading skeleton and empty state
+
+Uses `useTasks()`, `useWorkers()`, `CreateTaskModal`, `ManagerTaskPanel`.
+
+---
+
+#### `app/tasks/[id]/page.tsx` — Worker Task Detail Page [DONE]
+
+Dedicated page for a single task. Fetches task by `id` param from `useTasks()`. Shows:
+- Sticky header with back navigation
+- `TaskMap` if coordinates exist
+- Status badge
+- Title, meta (location, deadline, assigned by), description
+- Action buttons (status update, Google Maps navigate)
+- Loading and not-found states
+
+---
+
+#### `app/chat-list/page.tsx` — Worker Chat List [DONE]
+
+Conversation list for workers. Displays list of conversations with:
+- Initials avatar
+- Name + last message preview
+- Timestamp
+- Unread indicator dot
+
+Currently hardcoded mock data. Links each conversation to `/chat?id=...`.
+
+---
+
+#### `app/chat/page.tsx` — Worker Chat [DONE]
+
+Chat interface with:
+- Desktop: sidebar (conversation list) + main chat area
+- Mobile: chat area only
+- Message history with sender/receiver differentiation and timestamps
+- Send message form (local state only, not connected to backend)
+
+Hardcoded mock data. Real-time backend pending.
+
+---
+
+#### `app/profile/page.tsx` — Worker Profile [DONE]
+
+Worker profile screen:
+- Profile card: avatar, name, role badge, availability toggle
+- Stats: tasks done today, on-time %, this week
+- Settings list: Availability toggle, Notifications, Vehicle & equipment, Help & support, Sign out
+
+All UI only — settings not wired to API.
+
+---
+
+#### `hooks/dashboard/tasks/useTasks.ts` — Task List Hook [DONE]
 
 ```ts
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
-  withCredentials: true,                // sends the session cookie with every request
-  headers: { "Content-Type": "application/json" },
-})
+const { tasks, setTasks, loading, refresh } = useTasks()
 ```
 
-All hooks import this instance instead of using raw `fetch` or a new axios instance.
+Calls `GET /tasks/list` on mount. Returns task array, manual setter (for optimistic updates), loading flag, and `refresh()` to re-fetch.
 
 ---
 
-#### `validations/zod.ts` — Form Schemas [DONE]
-
-Client-side Zod schemas for form validation via `react-hook-form` + `zodResolver`.
-
-| Schema | Fields | Validation Rules |
-|---|---|---|
-| `signupSchema` | `name`, `email`, `organizationName`, `password` | name ≥ 2 chars, valid email, org ≥ 2 chars, password 6–20 chars |
-| `singinSchema` | `email`, `password` | valid email, password 6–20 chars |
-
-Exported types: `SignupValues`, `SigninValues`
-
----
-
-#### `hooks/auth/signup.ts` — `useSignup()` [DONE]
-
-Manages the signup form state, validation, and API call.
+#### `hooks/useUpdateTaskStatus.ts` — Status Update Hook [DONE]
 
 ```ts
-const { form, handleSubmit } = useSignup()
+const updated = await updateStatus(taskId, "in_progress")
 ```
 
-- `form` — react-hook-form instance with `signupSchema` Zod resolver
-- `handleSubmit(values)` — calls `api.post("/auth/signup", values)` → redirects to `/dashboard` on success → shows `toast.error` + sets field errors from server `fields` array on failure
-- Uses `handleAxiosError` for Axios-level error handling
+Calls `PATCH /tasks/:id/status`. Returns updated `ITask` or `null`. Loading state + success/error toasts.
 
 ---
 
-#### `hooks/auth/signin.ts` — `useSignin()` [DONE]
-
-Same pattern as `useSignup` for the signin form.
-
-- `form` — react-hook-form with `singinSchema`
-- `handleSubmit(values)` — calls `api.post("/auth/signin", values)` → redirects to `/dashboard` on success
-
----
-
-#### `hooks/auth/signout.ts` — `useSignout()` [DONE]
+#### `hooks/useWorkers.ts` — Worker List Hook [DONE]
 
 ```ts
-const { loading, handleSingout } = useSignout()
+const { workers, loading } = useWorkers()
 ```
 
-- `handleSingout()` — calls `api.post("/auth/signout")` → redirects to `/auth/signin` on success
-- `loading` — boolean for disabling the signout button during the request
+Calls `GET /memberships/workers`. Returns `IWorker[]` for populating assignee dropdowns in manager views.
 
 ---
 
-#### `app/auth/signup/page.tsx` — Signup Page [DONE]
+#### `hooks/use-mobile.ts` — Mobile Detection [DONE]
 
-Full signup form built with shadcn UI:
-- FieldForce logo header (Radar icon)
-- Card layout with 4 fields: Full name, Work email (with Mail icon), Company name (with Building2 icon), Password (with show/hide toggle)
-- Submit button shows loading state (`"Creating account…"`)
-- Terms & Privacy links at bottom
-- Link to signin page
+```ts
+const isMobile = useIsMobile()  // true if < 768px
+```
 
-Uses `useSignup()` hook for all form logic.
+Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
 
 ---
 
-#### `app/auth/signin/page.tsx` — Signin Page [DONE]
+#### `validations/zod.ts` — Client Zod Schemas [DONE]
 
-Full signin form:
-- FieldForce logo header
-- Card with 2 fields: Work email, Password (with show/hide toggle)
-- "Forgot password?" link
-- Submit button with loading state
-- Link to signup page
-
-Uses `useSignin()` hook.
-
----
-
-#### `app/dashboard/page.tsx` — Dashboard Home [DONE]
-
-Placeholder dashboard. Shows "welcome to the dashboard" + a `Signout` button using `useSignout()`.
-
----
-
-#### `app/dashboard/*` — Dashboard Sub-pages [STUB]
-
-| Page | Plans |
+| Schema | Fields |
 |---|---|
-| `tasks/page.tsx` | Task list + create form (role-filtered) |
-| `map/page.tsx` | Google Maps with live employee location markers |
-| `chat/page.ts` | Real-time direct messaging (Socket.IO) |
-| `team/page.tsx` | Team members list, roles, invite new members |
-
----
-
-#### `lib/utils.ts` — Utilities [DONE]
-
-| Function | Description |
-|---|---|
-| `cn(...inputs)` | Merges Tailwind classes without conflicts (clsx + twMerge) |
-| `copyToClipboard(text)` | Copies text to clipboard + shows `toast.success("Copied!")` |
-| `formatMony(price)` | Formats number as `"BDT 1,000"` |
-| `handleAxiosError(error)` | Handles Axios errors: reads `error.response.data.error.message`, shows toast, returns `{ message, status }` |
-
----
-
-#### `components/ui/*` — shadcn UI Components [DONE]
-
-| Component | Description |
-|---|---|
-| `button.tsx` | Button with CVA variants (default, outline, secondary, ghost, destructive, link) and sizes |
-| `card.tsx` | Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription |
-| `form.tsx` | Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage — wraps react-hook-form |
-| `input.tsx` | Styled `<input>` element |
-| `label.tsx` | Styled `<label>` via Radix Label primitive |
-| `sonner.tsx` | Toaster component from sonner (wraps the provider) |
-
----
-
-#### `components/theme-provider.tsx` — Dark Mode [DONE]
-
-- `ThemeProvider` — wraps `next-themes` provider
-- `ThemeHotkey` — `d` key toggles light/dark; disabled inside inputs
+| `signupSchema` | `name` (≥2), `email`, `organizationName` (≥2), `password` (6–20) |
+| `singinSchema` | `email`, `password` (6–20) |
+| `zTasks` | `title`, `description`, `assignedTo?`, `status` (enum), `latitude?`, `longitude?`, `deadline?` |
 
 ---
 
@@ -878,58 +889,55 @@ Placeholder dashboard. Shows "welcome to the dashboard" + a `Signout` button usi
 
 ### Done
 
-- [x] Project scaffolding (client + server structure)
-- [x] PostgreSQL via Neon + Drizzle (`pg.Pool`)
-- [x] Redis via Upstash ioredis
-- [x] Full database schema (7 tables + 2 pgEnums)
-- [x] Drizzle migration config
-- [x] `GET /api/v1/health` endpoint
-- [x] Centralized error handler module (`src/errors/index.ts`)
-- [x] Zod request validation on all implemented services
-- [x] **Auth — signup** — creates user + org + membership in DB transaction, sets session cookie
-- [x] **Auth — signin** — validates credentials, creates Redis session, sets cookie
-- [x] **Auth — signout** — deletes Redis session, clears cookie
-- [x] **Auth — me** — returns session user via cookie
-- [x] `authMiddileware` — signed cookie session validation
-- [x] `requiredRoles()` — RBAC middleware factory
-- [x] `passwordHashingHelper` / `comparePassword` — bcrypt utilities
-- [x] `generateToken` — secure random hex for invitation tokens
-- [x] Redis session management (`createSession`, `getSession`, `deleteSession`)
-- [x] **Invitations — create** (`POST /invitations/register`)
-- [x] **Invitations — list** (`GET /invitations/list`)
-- [x] **Invitations — accept** (`POST /invitations/accept`)
-- [x] Next.js middleware — route protection (session cookie check)
-- [x] axios API client (`lib/api.ts`) with `withCredentials: true`
-- [x] Zod form schemas (`validations/zod.ts`) — signupSchema, singinSchema
-- [x] `useSignup()` hook — form + API call + error handling
-- [x] `useSignin()` hook — form + API call + redirect
-- [x] `useSignout()` hook — API call + redirect + loading state
-- [x] Signup page (`/auth/signup`) — full form UI
-- [x] Signin page (`/auth/signin`) — full form UI
-- [x] Dashboard home (`/dashboard`) — signout button
-- [x] Tailwind CSS v4 + shadcn/ui design system (Button, Card, Form, Input, Label, Sonner)
-- [x] Dark mode toggle (ThemeProvider + `d` key)
-- [x] `handleAxiosError`, `copyToClipboard`, `formatMony` utilities
+- [x] PostgreSQL + Drizzle schema (7 tables + 2 pgEnums + task relations)
+- [x] Redis session management
+- [x] Centralized error handler (`errors/index.ts`)
+- [x] Centralized Zod schemas (`server/validations/index.ts`)
+- [x] Auth — signup, signin, signout, me
+- [x] Auth middleware + RBAC (`requiredRoles`)
+- [x] Auth context (`AuthProvider` + `useUser`)
+- [x] Invitations — create, list, accept
+- [x] **Tasks — create** (manager, with optional assignee + location)
+- [x] **Tasks — list** (role-filtered: manager sees all, worker sees assigned)
+- [x] **Tasks — update status** (worker updates own, manager updates any)
+- [x] **Tasks — full patch** (manager updates status + assignedTo together)
+- [x] **Memberships — list workers** (`GET /memberships/workers`)
+- [x] Next.js route protection middleware
+- [x] `RoleGate` component (client-side RBAC guard)
+- [x] Google Maps integration (loader, location picker, task map, navigate)
+- [x] Manager dashboard with sidebar navigation
+- [x] Manager task table (filter by status, search by title)
+- [x] `CreateTaskModal` — full form with Google Maps + Places autocomplete
+- [x] `ManagerTaskPanel` — slide-in edit panel (status + assignee)
+- [x] Worker home page — task list with progress + stats
+- [x] Worker task detail — map + status progression + navigate
+- [x] Worker chat UI — list + chat interface (mock data, backend pending)
+- [x] Worker profile page (UI only)
+- [x] Worker bottom navigation
+- [x] `useTasks`, `useWorkers`, `useUpdateTaskStatus`, `useIsMobile` hooks
+- [x] TypeScript interfaces (`ITask`, `IWorker`, `TaskStatus`, etc.)
+- [x] Tailwind CSS v4 + full shadcn/ui component set
 
 ### Stub / Pending
 
 - [ ] Invitation decline endpoint
-- [ ] Email sending for invitations (link returned in API response only)
-- [ ] `changePassword`, `forgotPassword`, `resetPassword` — defined in service, not exposed via routes yet
-- [ ] `requireRole.ts` — superseded, can be deleted
-- [ ] `src/lib/auth-utils.ts` — empty, can be deleted
-- [ ] `components/auth/signup.tsx` — empty stub
+- [ ] Email sending for invitations
+- [ ] `changePassword`, `forgotPassword`, `resetPassword` — defined, not exposed via routes
+- [ ] Dashboard map page (real-time worker locations)
+- [ ] Dashboard team page
+- [ ] Dashboard chat page (manager side)
+- [ ] Worker profile settings wired to API
+- [ ] `requireRole.ts` — can be deleted (superseded)
+- [ ] `src/lib/auth-utils.ts` — can be deleted (superseded)
 
 ### Not Started
 
-- [ ] Task CRUD endpoints + UI
-- [ ] Location tracking endpoints + UI
-- [ ] Messaging endpoints + UI
-- [ ] Socket.IO server (real-time location + chat)
-- [ ] Dashboard sub-pages (tasks, map, chat, team)
-- [ ] Google Maps JavaScript API (`@googlemaps/js-api-loader`)
+- [ ] Socket.IO server (real-time location updates + chat)
+- [ ] Location tracking endpoints + DB writes
+- [ ] Messages endpoints + real-time delivery
+- [ ] Google Maps live tracking (markers for all workers)
 - [ ] File uploads (Cloudflare R2)
-- [ ] Email service (Gmail SMTP)
+- [ ] Email service (Gmail SMTP for invitations)
 
 ---
 
@@ -938,10 +946,9 @@ Placeholder dashboard. Shows "welcome to the dashboard" + a `Signout` button usi
 | Week | Feature | Status |
 |---|---|---|
 | 1 | Project setup (server + client + DB schema) | Done |
-| 2 | Auth (signup, signin, signout, session, Zod validation) | Done |
-| 3 | Invitations (create, accept, list) + Client auth pages | In Progress |
-| 4 | Task management (CRUD, assignment, status) | Pending |
-| 5 | Real-time location (Socket.IO, Google Maps) | Pending |
-| 6 | Real-time chat (DMs, read receipts) | Pending |
-| 7 | Dashboard (stats, overview, notifications) | Pending |
-| 8–13 | Polish, testing, deployment, extras | Pending |
+| 2 | Auth (signup, signin, signout, session, Zod) | Done |
+| 3 | Invitations + Tasks CRUD + Worker/Manager UI | Done |
+| 4 | Real-time location (Socket.IO + Google Maps live tracking) | Next |
+| 5 | Real-time chat (DMs, read receipts, Socket.IO) | Pending |
+| 6 | Dashboard analytics + notifications | Pending |
+| 7–13 | Polish, testing, deployment, extras | Pending |

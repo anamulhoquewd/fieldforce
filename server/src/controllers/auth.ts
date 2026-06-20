@@ -3,6 +3,9 @@ import {
   badRequestError,
   serverError,
 } from "@/errors/index.js";
+import { db } from "@/db/index.js";
+import { users } from "@/db/schema.js";
+import { eq } from "drizzle-orm";
 import { deleteSession } from "@/lib/session.js";
 import { auth } from "@/services/index.js";
 import type { Context } from "hono";
@@ -86,20 +89,28 @@ const singoutController = async (c: Context) => {
 // Get Me
 const fetchMe = async (c: Context) => {
   try {
-    // Get user from auth token
-    const user = c.get("user");
+    const session = c.get("user");
 
-    // Check if user is authenticated
-    if (!user) {
+    if (!session) {
       return authenticationError(c);
     }
 
-    // Response
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.id, session.userId),
+      columns: { id: true, name: true, email: true },
+    });
+
     return c.json(
       {
         success: true,
         message: "User fetched successfully",
-        data: user,
+        data: {
+          userId: session.userId,
+          organizationId: session.organizationId,
+          role: session.role,
+          name: dbUser?.name ?? null,
+          email: dbUser?.email ?? null,
+        },
       },
       200,
     );

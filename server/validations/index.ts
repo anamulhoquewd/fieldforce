@@ -52,13 +52,13 @@ export type TUser = z.infer<typeof zUserSchema>;
 export const zTasks = z.object({
   organizationId: z.string(),
   title: z.string(),
-  description: z.string(),
+  description: z.string().optional().default(""),
   creatorId: z.string(),
   assignedTo: z.string().optional(),
   status: z.enum(["pending", "in_progress", "completed"]).default("pending"),
-  longitude: z.number().nullable(),
-  latitude: z.number().nullable(),
-  deadline: z.date().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  deadline: z.coerce.date().optional(),
 });
 
 export type TTasks = z.infer<typeof zTasks>;
