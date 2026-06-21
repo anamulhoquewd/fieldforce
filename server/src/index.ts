@@ -7,6 +7,8 @@ import { cors } from "hono/cors";
 import { notFoundError } from "./errors/index.js";
 import taskRoute from "./routes/tasks.js";
 import membershipRoute from "./routes/memberships.js";
+import locationRoute from "./routes/locations.js";
+import { Server } from "socket.io";
 
 const PORT = process.env.PORT || 3000;
 
@@ -37,12 +39,13 @@ app.route("/auth", authRoute);
 // invitations route
 app.route("/invitations", invitationRoute);
 
-
 // tasks route
-app.route("/tasks", taskRoute)
+app.route("/tasks", taskRoute);
 
 // memberships
-app.route("/memberships", membershipRoute)
+app.route("/memberships", membershipRoute);
+
+app.route("/locations", locationRoute);
 
 // Global Error Handler
 app.onError((error: any, c) => {
@@ -63,7 +66,7 @@ app.notFound((c) => {
   return error;
 });
 
-serve(
+const server = serve(
   {
     fetch: app.fetch,
     port: Number(PORT) || 3000,
@@ -72,3 +75,18 @@ serve(
     console.log(`Server is running on http://localhost:${info.port}`);
   },
 );
+
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    credentials: true,
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("✅ A client connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("❌ A client disconnected:", socket.id);
+  });
+});

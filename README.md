@@ -152,7 +152,7 @@ fieldforce/
 │   │   │   ├── invitations.ts                # [DONE] /invitations/*
 │   │   │   ├── tasks.ts                      # [DONE] /tasks/*
 │   │   │   ├── memberships.ts                # [DONE] /memberships/*
-│   │   │   ├── locations.ts                  # [STUB] /locations/*
+│   │   │   ├── locations.ts                  # [DONE] /locations/* (REST only, Socket.IO pending)
 │   │   │   └── messages.ts                   # [STUB] /messages/*
 │   │   ├── controllers/
 │   │   │   ├── index.ts                      # [DONE] Re-exports all controllers
@@ -160,7 +160,7 @@ fieldforce/
 │   │   │   ├── invitations.ts                # [DONE] create/list/accept
 │   │   │   ├── tasks.ts                      # [DONE] create/list/updateStatus/patch
 │   │   │   ├── memberships.ts                # [DONE] getWorkerController
-│   │   │   ├── locations.ts                  # [STUB]
+│   │   │   ├── locations.ts                  # [DONE] updateLocation, getLocations
 │   │   │   └── messages.ts                   # [STUB]
 │   │   └── services/
 │   │       ├── index.ts                      # [DONE] Re-exports all services
@@ -168,7 +168,7 @@ fieldforce/
 │   │       ├── invitations.ts                # [DONE] create/accept/fetchInvitations
 │   │       ├── tasks.ts                      # [DONE] create/list/updateStatus/patch
 │   │       ├── memberships.ts                # [DONE] getWorkersService
-│   │       ├── locations.ts                  # [STUB]
+│   │       ├── locations.ts                  # [DONE] updateLocation (Redis) + getLocations
 │   │       └── messages.ts                   # [STUB]
 │   ├── validations/
 │   │   └── index.ts                          # [DONE] Centralized Zod schemas
@@ -179,7 +179,7 @@ fieldforce/
 │   └── package.json
 │
 ├── LATER.md                                  # Deferred features log
-├── socket-server.ts                          # [STUB] Socket.IO server
+├── socket-server.ts                          # [TEST] Socket.IO practice — basic connect/disconnect only
 └── README.md
 ```
 
@@ -409,12 +409,13 @@ Base path: `/api/v1`
 |---|---|---|---|---|---|
 | GET | `/memberships/workers` | Cookie | manager | **DONE** | List all workers in the org |
 
-### Locations — `[STUB]`
-| Method | Path | Description |
-|---|---|---|
-| POST | `/locations` | Worker pushes GPS coordinates |
-| GET | `/locations` | Manager gets latest team locations |
-| GET | `/locations/:userId` | Manager gets user location history |
+### Locations
+
+| Method | Path | Auth | Role | Status | Description |
+|---|---|---|---|---|---|
+| POST | `/locations` | Cookie | any | **DONE** | Worker pushes GPS coordinates (stored in Redis) |
+| GET | `/locations` | Cookie | manager | **DONE** | Manager gets latest location of all workers |
+| GET | `/locations/:userId` | Cookie | manager | STUB | User location history from DB |
 
 ### Messages — `[STUB]`
 | Method | Path | Description |
@@ -902,6 +903,9 @@ Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
 - [x] **Tasks — update status** (worker updates own, manager updates any)
 - [x] **Tasks — full patch** (manager updates status + assignedTo together)
 - [x] **Memberships — list workers** (`GET /memberships/workers`)
+- [x] **Locations — update** (`POST /locations`) — stores `{ lat, lng, updatedAt }` in Redis (`location:{orgId}:{userId}`, TTL 1hr)
+- [x] **Locations — get all** (`GET /locations`) — manager fetches latest position of all workers via Redis `MGET`
+- [x] Socket.IO basic connection test (server: connect/disconnect logs; client: `test.tsx` probe component — **practice only, no real events yet**)
 - [x] Next.js route protection middleware
 - [x] `RoleGate` component (client-side RBAC guard)
 - [x] Google Maps integration (loader, location picker, task map, navigate)
@@ -932,10 +936,10 @@ Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
 
 ### Not Started
 
-- [ ] Socket.IO server (real-time location updates + chat)
-- [ ] Location tracking endpoints + DB writes
+- [ ] Socket.IO real-time events (connection test done — actual `location:update` / `message:send` events pending)
+- [ ] Location history from DB (current: latest position only via Redis)
 - [ ] Messages endpoints + real-time delivery
-- [ ] Google Maps live tracking (markers for all workers)
+- [ ] Google Maps live tracking (markers for all workers, Socket.IO updates)
 - [ ] File uploads (Cloudflare R2)
 - [ ] Email service (Gmail SMTP for invitations)
 
@@ -948,7 +952,7 @@ Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
 | 1 | Project setup (server + client + DB schema) | Done |
 | 2 | Auth (signup, signin, signout, session, Zod) | Done |
 | 3 | Invitations + Tasks CRUD + Worker/Manager UI | Done |
-| 4 | Real-time location (Socket.IO + Google Maps live tracking) | Next |
+| 4 | Real-time location (Socket.IO events + Google Maps live tracking) | In Progress |
 | 5 | Real-time chat (DMs, read receipts, Socket.IO) | Pending |
 | 6 | Dashboard analytics + notifications | Pending |
 | 7–13 | Polish, testing, deployment, extras | Pending |
