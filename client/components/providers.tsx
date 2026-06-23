@@ -1,7 +1,7 @@
 "use client"
 
 import { AuthProvider } from "@/context/authContext"
-import { ThemeProvider } from "next-themes"
+import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 

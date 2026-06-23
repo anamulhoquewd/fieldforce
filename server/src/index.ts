@@ -9,7 +9,11 @@ import taskRoute from "./routes/tasks.js";
 import membershipRoute from "./routes/memberships.js";
 import locationRoute from "./routes/locations.js";
 import { Server } from "socket.io";
+import { parseSigned } from "hono/utils/cookie";
+import { getSession } from "./lib/session.js";
+import { updateLocationService } from "./services/locations.js";
 
+const SESSION_SECRET = process.env.SESSION_SECRET || "field_force_dev_by_anam";
 const PORT = process.env.PORT || 3000;
 
 const app = new Hono().basePath("/api/v1");
@@ -83,8 +87,67 @@ const io = new Server(server, {
   },
 });
 
+io.use(async (socket, next) => {
+  try {
+    // ১. cookie header থেকে session id বের করো
+    const cookieHeader = socket.handshake.headers.cookie;
+    if (!cookieHeader) {
+      return next(new Error("No cookie - unauthorized"));
+    }
+
+    const signedCookies = await parseSigned(
+      cookieHeader,
+      SESSION_SECRET,
+      "session",
+    );
+    console.log("Signd: ", signedCookies);
+    const sessionId = signedCookies.session;
+
+    if (!sessionId || typeof sessionId !== "string") {
+      return next(new Error("No session - unauthorized"));
+    }
+
+    const session = await getSession(sessionId);
+    if (!session) {
+      return next(new Error("Invalid session - unauthorized"));
+    }
+    console.log("Session: ", session);
+
+    socket.data.user = session; // { userId, organizationId, role }
+    next(); // সব ঠিক, connect হতে দাও
+  } catch (err) {
+    next(new Error("Auth failed"));
+  }
+});
+
 io.on("connection", (socket) => {
-  console.log("✅ A client connected:", socket.id);
+  const user = socket.data.user; // auth middleware থেকে { userId, organizationId, role }
+
+  const room = `org:${user.organizationId}`;
+  socket.join(room);
+  console.log(`📥 ${user.role} joined room: ${room}`);
+
+  socket.on(
+    "location-update",
+    async (data: { latitude: number; longitude: number }) => {
+      if (user.role !== "worker") return;
+
+      await updateLocationService({
+        organizationId: user.organizationId,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        userId: user.userId,
+      });
+
+      const room = `org:${user.organizationId}`;
+      socket.to(room).emit("worker-location", {
+        userId: user.userId,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+  );
 
   socket.on("disconnect", () => {
     console.log("❌ A client disconnected:", socket.id);

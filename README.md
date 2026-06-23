@@ -15,6 +15,7 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 - [Auth Strategy](#auth-strategy)
 - [Database Schema](#database-schema)
 - [API Endpoints](#api-endpoints)
+- [Socket.IO Events](#socketio-events)
 - [Environment Variables](#environment-variables)
 - [Getting Started](#getting-started)
 - [Module Breakdown](#module-breakdown)
@@ -38,12 +39,12 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 | Backend Validation | Zod | — | Request body schema validation |
 | Database | PostgreSQL (Neon serverless) | — | Primary persistent storage |
 | ORM | Drizzle ORM | 0.45.2 | Type-safe DB queries & migrations |
-| Cache / Session | Redis (Upstash) via ioredis | 5.11.1 | Session store, real-time pub/sub |
+| Cache / Session | Redis (Upstash) via ioredis | 5.11.1 | Session store, live location cache |
 | Password Hashing | bcrypt | — | Secure password hashing |
 | HTTP Client | axios | — | API calls with cookie support |
-| Maps | Google Maps JavaScript API | — | Location picker, task map, navigation |
+| Maps | Google Maps JavaScript API | — | Location picker, live map, navigation |
 | Toast | Sonner | — | Toast notifications |
-| Real-time | Socket.IO | — | Live location + chat (planned) |
+| Real-time | Socket.IO | — | Live location + chat |
 | File Storage | Cloudflare R2 | — | User uploads (planned) |
 | Email | Gmail SMTP | — | Invitations (planned) |
 
@@ -59,14 +60,14 @@ fieldforce/
 │   │   │   ├── signup/page.tsx               # [DONE] Signup form page
 │   │   │   └── signin/page.tsx               # [DONE] Signin form page
 │   │   ├── dashboard/                        # Manager interface
-│   │   │   ├── layout.tsx                    # [DONE] Sidebar layout
+│   │   │   ├── layout.tsx                    # [DONE] Sidebar layout (persists open/closed state)
 │   │   │   ├── page.tsx                      # [DONE] Manager dashboard home
-│   │   │   ├── tasks/page.tsx                # [DONE] Task table + create + edit panel
-│   │   │   ├── map/page.tsx                  # [STUB] Live map page
-│   │   │   ├── chat/page.tsx                 # [STUB] Manager chat page
+│   │   │   ├── tasks/page.tsx                # [DONE] Task table + filter + search + create + edit panel
+│   │   │   ├── maps/page.tsx                 # [DONE] Live map — workers + tasks + Socket.IO
+│   │   │   ├── chats/page.tsx                # [DONE] Manager chat — ConversationList + MessageThread
+│   │   │   ├── test.tsx                      # [PRACTICE] Socket.IO connection test (dev only)
 │   │   │   └── team/page.tsx                 # [STUB] Team management page
-│   │   ├── chat-list/page.tsx                # [DONE] Worker conversation list
-│   │   ├── chat/page.tsx                     # [DONE] Worker chat interface (mock data)
+│   │   ├── chats/page.tsx                    # [DONE] Worker chat — ConversationList + MessageThread (mobile)
 │   │   ├── profile/page.tsx                  # [DONE] Worker profile + settings
 │   │   ├── tasks/[id]/page.tsx               # [DONE] Worker task detail page
 │   │   ├── globals.css                       # [DONE] Tailwind v4 + theme tokens
@@ -89,14 +90,18 @@ fieldforce/
 │   │   │   ├── skeleton.tsx                  # [DONE] Loading skeleton
 │   │   │   ├── sonner.tsx                    # [DONE] Toast provider
 │   │   │   └── tooltip.tsx                   # [DONE] Tooltip
+│   │   ├── chat/
+│   │   │   ├── conversation-list.tsx         # [DONE] Shared conversation list (manager + worker)
+│   │   │   └── message-thread.tsx            # [DONE] Shared message thread (manager + worker)
 │   │   ├── dashboard/
-│   │   │   └── manager-task-panel.tsx        # [DONE] Task edit side panel
+│   │   │   ├── manager-task-panel.tsx        # [DONE] Task edit side panel
+│   │   │   └── map/
+│   │   │       ├── live-map.tsx              # [DONE] Google Maps live worker + task markers
+│   │   │       └── worker-list-sidebar.tsx   # [DONE] Worker list with online/offline filter
 │   │   ├── worker/
 │   │   │   ├── bottom-navigation.tsx         # [DONE] Mobile tab bar
 │   │   │   ├── task-detail-sheet.tsx         # [DONE] Full-screen task detail
 │   │   │   └── task-map.tsx                  # [DONE] Google Maps task map
-│   │   ├── auth/
-│   │   │   └── signup.tsx                    # [STUB] Reusable signup component
 │   │   ├── app-sidebar.tsx                   # [DONE] Manager sidebar (nav + user)
 │   │   ├── create-task-modal.tsx             # [DONE] Task creation modal with maps
 │   │   ├── google-maps-script.tsx            # [DONE] Async Google Maps loader
@@ -123,6 +128,7 @@ fieldforce/
 │   │   └── index.ts                          # [DONE] ITask, IWorker, TaskStatus etc.
 │   ├── lib/
 │   │   ├── api.ts                            # [DONE] axios instance (withCredentials)
+│   │   ├── chat-service.ts                   # [DONE] Chat types + mock service functions
 │   │   └── utils.ts                          # [DONE] cn, handleAxiosError, etc.
 │   ├── validations/
 │   │   └── zod.ts                            # [DONE] Zod schemas (auth + tasks)
@@ -134,7 +140,7 @@ fieldforce/
 │
 ├── server/                                   # Hono REST API
 │   ├── src/
-│   │   ├── index.ts                          # [DONE] Entry — CORS + all routes
+│   │   ├── index.ts                          # [DONE] Entry — CORS + routes + Socket.IO (auth + location events)
 │   │   ├── db/
 │   │   │   ├── schema.ts                     # [DONE] 7 tables + 2 pgEnums + relations
 │   │   │   └── index.ts                      # [DONE] pg.Pool + Drizzle instance
@@ -145,14 +151,13 @@ fieldforce/
 │   │   │   ├── auth.ts                       # [DONE] bcrypt + token utils
 │   │   │   └── session.ts                    # [DONE] Redis session CRUD
 │   │   ├── middleware/
-│   │   │   ├── auth.ts                       # [DONE] authMiddileware + requiredRoles
-│   │   │   └── requireRole.ts                # [STUB] Superseded
+│   │   │   └── auth.ts                       # [DONE] authMiddileware + requiredRoles
 │   │   ├── routes/
 │   │   │   ├── auth.ts                       # [DONE] /auth/*
 │   │   │   ├── invitations.ts                # [DONE] /invitations/*
 │   │   │   ├── tasks.ts                      # [DONE] /tasks/*
 │   │   │   ├── memberships.ts                # [DONE] /memberships/*
-│   │   │   ├── locations.ts                  # [DONE] /locations/* (REST only, Socket.IO pending)
+│   │   │   ├── locations.ts                  # [DONE] /locations/*
 │   │   │   └── messages.ts                   # [STUB] /messages/*
 │   │   ├── controllers/
 │   │   │   ├── index.ts                      # [DONE] Re-exports all controllers
@@ -179,7 +184,6 @@ fieldforce/
 │   └── package.json
 │
 ├── LATER.md                                  # Deferred features log
-├── socket-server.ts                          # [TEST] Socket.IO practice — basic connect/disconnect only
 └── README.md
 ```
 
@@ -194,26 +198,32 @@ fieldforce/
 │  MANAGER                          WORKER                    │
 │  /dashboard/* (sidebar)           / (bottom nav)           │
 │   ├─ Tasks table + create         ├─ Task list + stats      │
-│   ├─ Map (stub)                   ├─ /tasks/[id] detail    │
-│   └─ Team / Chat (stub)           ├─ /chat-list + /chat    │
-│                                   └─ /profile              │
+│   ├─ /dashboard/maps              ├─ /tasks/[id] detail    │
+│   │   WorkerListSidebar +         ├─ /chats (mobile)       │
+│   │   LiveMap + Socket.IO         └─ /profile              │
+│   └─ /dashboard/chats                                       │
+│       ConversationList + MessageThread                      │
 │                                                             │
 │  middleware.ts — cookie route guard (Edge Runtime)          │
 │  AuthProvider — /auth/me on mount → user context           │
 │  axios (withCredentials) + Sonner toasts                   │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ REST :8000
-┌───────────────────────▼─────────────────────────────────────┐
-│                   Server (Hono API)                         │
+└───────────────┬────────────────────────┬────────────────────┘
+                │ REST :8000             │ Socket.IO :8000
+┌───────────────▼────────────────────────▼────────────────────┐
+│                   Server (Hono + Socket.IO)                 │
 │  CORS → Routes → authMiddileware → requiredRoles            │
-│  /auth  /invitations  /tasks  /memberships                  │
-│  Services use Zod safeParse → structured error returns      │
+│  /auth  /invitations  /tasks  /memberships  /locations      │
+│                                                             │
+│  Socket.IO middleware — validates session cookie → join     │
+│  org:{organizationId} room                                  │
+│  "location-update" → Redis SET + broadcast "worker-location"│
 └────────┬─────────────────────┬───────────────────────────────┘
          │                     │
 ┌────────▼──────┐  ┌───────────▼──────────────────────────────┐
 │  PostgreSQL   │  │  Redis (Upstash)                          │
 │  (Neon)       │  │  session:{hex64} → { userId, orgId, role}│
-│  7 tables     │  │  TTL: 7 days                             │
+│  7 tables     │  │  location:{orgId}:{userId} → { lat, lng }│
+│               │  │  TTL: session 7d / location 1h           │
 └───────────────┘  └──────────────────────────────────────────┘
 ```
 
@@ -229,8 +239,8 @@ FieldForce has two completely separate UIs sharing the same API:
 | Navigation | Collapsible sidebar | Mobile bottom tab bar |
 | Task view | Table with filter/search, create modal, edit panel | Card list with progress stats |
 | Task detail | Edit panel (side-by-side) | Full-screen sheet with map |
-| Maps | Google Maps in create modal (place autocomplete + pin) | Google Maps showing task location + navigate button |
-| Chat | Stub page | Conversation list + chat UI (mock data) |
+| Maps | `/dashboard/maps` — live worker + task markers, worker sidebar | Task map in detail sheet + navigate button |
+| Chat | `/dashboard/chats` — ConversationList + MessageThread (desktop layout) | `/chats` — same components, mobile-first (list → thread navigation) |
 | Profile | — | Profile card + settings |
 
 ---
@@ -415,7 +425,6 @@ Base path: `/api/v1`
 |---|---|---|---|---|---|
 | POST | `/locations` | Cookie | any | **DONE** | Worker pushes GPS coordinates (stored in Redis) |
 | GET | `/locations` | Cookie | manager | **DONE** | Manager gets latest location of all workers |
-| GET | `/locations/:userId` | Cookie | manager | STUB | User location history from DB |
 
 ### Messages — `[STUB]`
 | Method | Path | Description |
@@ -423,6 +432,32 @@ Base path: `/api/v1`
 | POST | `/messages` | Send DM |
 | GET | `/messages/:userId` | Get conversation |
 | PATCH | `/messages/:id/read` | Mark as read |
+
+---
+
+## Socket.IO Events
+
+All Socket.IO connections are authenticated via session cookie. On connect, each client joins `org:{organizationId}` room.
+
+### Client → Server
+
+| Event | Sender | Payload | Description |
+|---|---|---|---|
+| `location-update` | worker | `{ latitude, longitude }` | Worker pushes GPS position; server writes to Redis and broadcasts to org room |
+
+### Server → Client
+
+| Event | Receiver | Payload | Description |
+|---|---|---|---|
+| `worker-location` | manager (in org room) | `{ userId, latitude, longitude, updatedAt }` | Broadcast on every worker location update |
+
+### Planned (not yet implemented)
+
+| Event | Direction | Description |
+|---|---|---|
+| `chat:message` | server → client | New message delivered in real time |
+| `chat:read` | client → server | Mark conversation as read |
+| `chat:typing` | client → server | Typing indicator |
 
 ---
 
@@ -500,9 +535,12 @@ pnpm drizzle-kit studio           # browser UI
 #### `src/index.ts` — App Entry [DONE]
 
 - CORS middleware with `CLIENT_ORIGIN` whitelist, `credentials: true`
-- Routes: `/auth`, `/invitations`, `/tasks`, `/memberships`
+- Routes: `/auth`, `/invitations`, `/tasks`, `/memberships`, `/locations`
 - Global 404 handler via `notFoundError`
-- Starts on `PORT`
+- **Socket.IO server** attached to the same Node.js HTTP server:
+  - Auth middleware: parses signed `session` cookie from handshake headers → validates Redis session → attaches `socket.data.user`
+  - On connect: worker/manager joins `org:{organizationId}` room
+  - `"location-update"` event: worker-only; writes to Redis via `updateLocationService` and broadcasts `"worker-location"` to org room
 
 ---
 
@@ -523,8 +561,6 @@ Consistent JSON response shapes for every error type. All controllers use these.
 ---
 
 #### `server/validations/index.ts` — Centralized Zod Schemas [DONE]
-
-All Zod schemas live here (moved from individual service files).
 
 | Schema | Used for |
 |---|---|
@@ -547,17 +583,14 @@ All functions validate input via `zTasks.safeParse` and return `{ error }` / `{ 
 1. Zod validates body (title required, status enum, optional assignedTo/lat/lng/deadline)
 2. If `assignedTo` provided → verifies that user is a worker in the same org
 3. Inserts task with `organizationId` and `creatorId` from session
-4. Returns created task
 
 **`fetchTasksService({ user })`**
 1. Manager → fetches all org tasks with relations (assignedWorker, creator, organization)
 2. Worker → fetches only tasks where `assigned_to = userId`
-3. Returns array of `ITask` with nested relations
 
 **`updateTaskService({ user, taskId, body })`**
 - Updates only `status` field
 - Worker: can only update their own assigned task
-- Manager: can update any task in org
 
 **`patchTaskService({ user, taskId, body })`**
 - Manager-only: updates both `status` and `assignedTo` atomically
@@ -565,41 +598,22 @@ All functions validate input via `zTasks.safeParse` and return `{ error }` / `{ 
 
 ---
 
+#### `src/services/locations.ts` — Location Service [DONE]
+
+**`updateLocationService({ organizationId, userId, latitude, longitude })`**
+- Writes `{ userId, lat, lng, updatedAt }` to Redis key `location:{orgId}:{userId}` with TTL 1hr
+- Also called by Socket.IO `"location-update"` handler directly (bypassing HTTP)
+
+**`getLocationsService(organizationId)`**
+- `KEYS location:{orgId}:*` → `MGET` → parse all → returns array of location objects
+
+---
+
 #### `src/services/memberships.ts` — Membership Service [DONE]
 
 **`getWorkersService({ organizationId })`**
-- Queries `memberships` joined with `users` where `role = "worker"` and `organizationId` matches
-- Returns `[{ id, name, email, role }]` — used to populate assignee dropdowns on the client
-
----
-
-#### `src/routes/tasks.ts` — Task Routes [DONE]
-
-| Method | Path | Middleware | Handler |
-|---|---|---|---|
-| POST | `/register` | `authMiddileware`, `requiredRoles("manager")` | `tasksController` |
-| GET | `/list` | `authMiddileware` | `fetchTasksController` |
-| PATCH | `/:id/status` | `authMiddileware` | `taskUpdateController` |
-| PATCH | `/:id` | `authMiddileware`, `requiredRoles("manager")` | `taskPatchController` |
-
----
-
-#### `src/routes/memberships.ts` — Membership Routes [DONE]
-
-| Method | Path | Middleware | Handler |
-|---|---|---|---|
-| GET | `/workers` | `authMiddileware`, `requiredRoles("manager")` | `getWorkerController` |
-
----
-
-#### `src/services/auth.ts` — Auth Service [DONE]
-
-**Exported:** `signupService`, `singinService`
-
-**Defined but not yet exposed via routes:**
-- `changePassword({ user, body })` — ZChangePassword validation, updates password in DB
-- `forgotPassword(email)` — generates 128-char reset token, stores in in-memory Map, builds reset URL
-- `resetPassword({ password, resetToken })` — validates token, hashes new password, updates DB, deletes token
+- Queries `memberships` joined with `users` where `role = "worker"`
+- Returns `[{ id, name, email, role }]`
 
 ---
 
@@ -614,81 +628,151 @@ All functions validate input via `zTasks.safeParse` and return `{ error }` / `{ 
 
 ---
 
+#### `lib/chat-service.ts` — Chat Service [DONE]
+
+Typed service layer for chat. All functions are async and currently return mock data. Each has a TODO comment showing the real API call to substitute when the backend is ready.
+
+**Types:**
+- `ChatMessage` — `{ id, conversationId, senderId, senderName, content, timestamp, status }`
+- `Conversation` — `{ id, type, name, participantId?, isOnline?, lastMessage, lastMessageAt, unreadCount }`
+
+**Functions:**
+- `getConversations(role)` — returns manager or worker conversation list
+- `getMessages(conversationId)` — returns message history for a conversation
+- `sendMessage(conversationId, senderName, content)` — pushes message to local store, returns new `ChatMessage`
+- `markAsRead(conversationId)` — no-op stub (TODO: `POST /conversations/:id/read`)
+
+**Socket events to wire up (documented in service file):**
+- `"chat:message"` → `{ conversationId, message: ChatMessage }`
+- `"chat:read"` → `{ conversationId, userId }`
+- `"chat:typing"` → `{ conversationId, userId, typing: boolean }`
+
+---
+
+#### `components/chat/conversation-list.tsx` — Conversation List [DONE]
+
+Shared between manager and worker chat pages.
+
+- 300px fixed-width sidebar column
+- Name-based color avatar (deterministic palette) with online dot for direct chats
+- Group conversations show a `Users` icon
+- Search input filters by conversation name
+- Unread count badge
+- `headerLeft` slot — used by manager page to inject `SidebarTrigger`
+- Selected conversation highlighted with blue left border
+
+---
+
+#### `components/chat/message-thread.tsx` — Message Thread [DONE]
+
+Shared between manager and worker chat pages.
+
+- Groups messages by calendar day with date separators ("Today", "Yesterday", date)
+- Sent bubbles (blue, right-aligned) vs received bubbles (gray, left-aligned)
+- Message status icons: `Check` = sent, `CheckCheck` = delivered, `CheckCheck` white = read
+- Group chats: sender name label above first bubble in a run, avatar on last bubble
+- `onBack` prop (optional) — shows `ChevronLeft` button for mobile list→thread navigation
+- Auto-scrolls to bottom on new messages via `ref`
+- Empty state when no conversation selected
+
+---
+
+#### `app/dashboard/chats/page.tsx` — Manager Chat Page [DONE]
+
+Desktop chat layout. `ConversationList` + `MessageThread` side by side. `SidebarTrigger` injected via `headerLeft` slot. Loads manager conversations on mount. Selecting a conversation loads messages and clears unread count.
+
+---
+
+#### `app/chats/page.tsx` — Worker Chat Page [DONE]
+
+Mobile-first chat layout. On mobile: shows list OR thread (not both). On desktop: side by side.
+
+- `showThread` flag controls which panel is visible on mobile
+- `onBack` → returns to conversation list
+- Loads worker conversations (subset: manager DM + crew group) on mount
+
+---
+
+#### `components/dashboard/map/live-map.tsx` — Live Map [DONE]
+
+Google Maps component for the manager's live map page.
+
+**Worker markers** — custom SVG:
+- Colored circle with initials (color determined by name, teal border if online, gray if offline)
+- First-name pill label below the circle
+- Click → fires `onWorkerClick(workerId)`
+
+**Task markers** — teardrop pin:
+- Color by status: `pending` = blue, `in_progress` = orange, `completed` = green, `cancelled` = red
+
+**InfoWindow** — opens on worker marker click:
+- Shows avatar, name, online/offline status
+- Current task reference (e.g. `FF-A3B2`) + title if assigned
+- "Message" and "Assign task" buttons (UI only)
+
+**Pan + zoom** — when `selectedWorkerId` changes, map pans to that worker and zooms to 15
+
+**Legend** — bottom-left overlay listing task pin colors
+
+---
+
+#### `components/dashboard/map/worker-list-sidebar.tsx` — Worker List Sidebar [DONE]
+
+Left panel on the maps page.
+
+- Live count chip in header (online workers)
+- Search by name or email
+- Filter tabs: All / Online / Offline with per-tab counts
+- Each row: avatar + name + status line (current task title if online+busy, "no active task" if online+idle, "Offline · Xm ago" if offline)
+- Crosshair "Locate" button per row → calls `onLocate(workerId)` to pan map
+
+---
+
+#### `app/dashboard/maps/page.tsx` — Live Map Page [DONE]
+
+Manager-only page at `/dashboard/maps`.
+
+1. Fetches workers (`GET /memberships/workers`), locations (`GET /locations`), tasks (`GET /tasks/list`) in parallel via `Promise.allSettled`
+2. Merges into `WorkerWithLocation[]` — worker is "online" if last location update < 5 minutes ago; current task is the first `pending` or `in_progress` task assigned to them
+3. Socket.IO connection: subscribes to `"worker-location"` events, updates `locationMap` state in real time → triggers re-render of markers
+4. `selectedWorkerId` state — shared between sidebar click, locate button, and map marker click
+5. Role guard: renders "only available to managers" if a worker somehow reaches this page
+
+---
+
 #### `context/authContext.ts` — Auth Context [DONE]
 
 `AuthProvider` component:
 - Calls `GET /auth/me` on mount to hydrate user state
 - Provides `{ user, loading, refresh, logout }` to all children
-- `user` shape: `{ userId, organizationId, role }`
+- `user` shape: `{ userId, name, email, organizationId, role }`
 
 `useUser()` hook — accesses context; throws if called outside `AuthProvider`.
-
-```tsx
-const { user, loading } = useUser()
-// user.role === "manager" | "worker"
-```
-
----
-
-#### `interfaces/index.ts` — TypeScript Interfaces [DONE]
-
-| Export | Description |
-|---|---|
-| `TaskStatus` | `"pending" \| "in_progress" \| "completed" \| "cancelled"` |
-| `IWorker` | `{ id, name, email, role }` |
-| `ICreator` | `{ id, name, email }` |
-| `IOrganization` | `{ id, name }` |
-| `ITask` | Full task with relations: `assignedWorker?: IWorker`, `creator: ICreator`, `organization: IOrganization` |
-
----
-
-#### `middleware.ts` — Route Protection [DONE]
-
-Next.js Edge Runtime. Checks `session` cookie presence.
-- `/dashboard/*`, `/my-tasks`, `/team`, `/map`, `/chat` — protected, redirect to `/auth/signin?from=path`
-- `/auth/signin`, `/auth/signup` — auth-only, redirect to `/dashboard` if already logged in
-
----
-
-#### `components/providers.tsx` — Root Providers [DONE]
-
-Wraps the entire app with:
-1. `TooltipProvider` (Radix)
-2. `ThemeProvider` (next-themes)
-3. `AuthProvider` (auth context)
-4. `Sonner` toaster (top-right, rich colors)
-
----
-
-#### `components/roleGate.tsx` — RBAC Guard [DONE]
-
-```tsx
-<RoleGate allow={["manager"]} fallback={<p>No access</p>}>
-  <ManagerOnlyContent />
-</RoleGate>
-```
-
-Reads `useUser()`. Returns `null` (or `fallback`) if user's role is not in `allow`. Returns `null` during loading.
-
----
-
-#### `components/google-maps-script.tsx` — Maps Loader [DONE]
-
-Loads Google Maps JS API via Next.js `<Script>` (strategy: `afterInteractive`). On load, dispatches `"google-maps-loaded"` custom event so other components can safely initialize map instances.
 
 ---
 
 #### `components/app-sidebar.tsx` — Manager Sidebar [DONE]
 
-Sidebar structure for the manager dashboard. Uses `SidebarProvider` context.
-
-Sections:
-- **Header**: `TeamSwitcher` (org name + logo)
-- **Main nav**: Dashboard, Maps, Tasks, Team, Chats (with icons)
-- **Projects**: Empty array (placeholder)
-- **Footer**: `NavUser` (user name + email)
+Nav items: Dashboard (`/dashboard`), Maps (`/dashboard/maps`), Tasks (`/dashboard/tasks`), Team (`/dashboard/team`), Chats (`/dashboard/chats`), Settings (`/dashboard/settings`).
 
 Collapsed state shows icons only. Mobile: drawer with overlay.
+
+---
+
+#### `app/dashboard/layout.tsx` — Dashboard Layout [DONE]
+
+Wraps all `/dashboard/*` pages with `SidebarProvider` → `AppSidebar` + `SidebarInset`. Reads `sidebar_state` cookie server-side to persist the user's last open/closed preference across page loads.
+
+---
+
+#### `app/dashboard/tasks/page.tsx` — Manager Task Page [DONE]
+
+Full task management interface for managers:
+- **Filter tabs**: All / Pending / In Progress / Completed (with counts)
+- **Search**: title search input in the header
+- **Task table**: assignee avatar + name, status dot + label, lat/lng coords, deadline (red if overdue)
+- **Create button** → opens `CreateTaskModal`
+- **Row click** → opens `ManagerTaskPanel` (right-side edit panel)
 
 ---
 
@@ -700,7 +784,7 @@ Dialog modal for managers to create tasks. Fields:
 - Assignee — worker dropdown from `useWorkers()`
 - Status — `pending / in_progress / completed`
 - Deadline — date picker
-- Location — Google Places autocomplete input + mini map with draggable marker pin + "Use current location" button (Geolocation API)
+- Location — Google Places autocomplete input + mini map with draggable marker pin + "Use current location" button
 
 On submit: `POST /tasks/register` → calls `onCreated()` callback → closes modal.
 
@@ -708,131 +792,42 @@ On submit: `POST /tasks/register` → calls `onCreated()` callback → closes mo
 
 #### `components/dashboard/manager-task-panel.tsx` — Task Edit Panel [DONE]
 
-Right-side slide-in panel for managers editing a selected task. Backdrop dismissal.
+Right-side slide-in panel for managers editing a selected task.
 
-- **Editable:** `status` (dropdown), `assignedTo` (worker dropdown from `useWorkers()`)
-- **Read-only display:** description, deadline, location coords, creator name, created date
+- **Editable:** `status` (dropdown), `assignedTo` (worker dropdown)
+- **Read-only:** description, deadline, location coords, creator name, created date
 - Save → `PATCH /tasks/:id` with both fields
 - Dirty state indicator when values have changed
 
 ---
 
-#### `components/worker/bottom-navigation.tsx` — Mobile Tab Bar [DONE]
-
-Fixed bottom navigation for workers (mobile-only). Three tabs:
-- My Tasks → `/`
-- Chat → `/chat-list` (with unread badge)
-- Profile → `/profile`
-
-Active tab highlighted. Icon + label per tab.
-
----
-
 #### `components/worker/task-detail-sheet.tsx` — Task Detail Sheet [DONE]
 
-Full-screen slide-up sheet (mobile) for workers viewing a task. Features:
-- Sticky header with back button + task title
-- `TaskMap` component if lat/lng present
+Full-screen slide-up sheet (mobile) for workers viewing a task:
+- `TaskMap` if lat/lng present
 - Status indicator + colored badge
-- Task metadata: location address, deadline (with overdue warning), assigned by
-- Description
-- Action buttons:
-  - Status progression: `pending → in_progress → completed`
-  - "Navigate" → opens Google Maps directions URL
-
-Uses `useUpdateTaskStatus` hook. Handles scroll lock on open.
-
----
-
-#### `components/worker/task-map.tsx` — Task Map [DONE]
-
-Google Maps component. Initializes `google.maps.Map` centered on `{ lat, lng }` with a marker. Listens for `"google-maps-loaded"` event if API not yet ready. Re-initializes on coordinate changes.
+- Task metadata: location, deadline (with overdue warning), assigned by
+- Status progression: `pending → in_progress → completed`
+- "Navigate" → opens Google Maps directions URL
 
 ---
 
 #### `app/page.tsx` — Worker Home [DONE]
 
-Worker's primary task list screen (route: `/`). Features:
+Worker's primary task list screen (`/`):
 - Progress bar: completed / total tasks
 - Stats row: done today, on-time %, this week
-- Task cards: status badge, title, location, deadline (overdue warning)
-- Loading skeleton while fetching
-- Empty state when no tasks
+- Task cards with status badge, location, deadline (overdue warning)
+- Loading skeleton + empty state
 - Tap a task card → opens `TaskDetailSheet`
 
-Uses `useTasks()` hook.
-
 ---
 
-#### `app/dashboard/layout.tsx` — Dashboard Layout [DONE]
+#### `middleware.ts` — Route Protection [DONE]
 
-Wraps all `/dashboard/*` pages with `SidebarProvider` → `AppSidebar` + `SidebarInset` (main content area). Provides the sidebar context for collapsible behavior.
-
----
-
-#### `app/dashboard/page.tsx` — Manager Dashboard Home [DONE]
-
-Manager's dashboard overview. Breadcrumb navigation header. Grid of placeholder cards (future: analytics, stats, quick actions).
-
----
-
-#### `app/dashboard/tasks/page.tsx` — Manager Task Page [DONE]
-
-Full task management interface for managers:
-- **Filter bar**: status tabs (All / Pending / In Progress / Completed) + title search input
-- **Task table**: assignee avatar + name, status badge, lat/lng, deadline (overdue indicator), created date
-- **Create button** → opens `CreateTaskModal`
-- **Row click** → opens `ManagerTaskPanel` (right-side edit panel)
-- Loading skeleton and empty state
-
-Uses `useTasks()`, `useWorkers()`, `CreateTaskModal`, `ManagerTaskPanel`.
-
----
-
-#### `app/tasks/[id]/page.tsx` — Worker Task Detail Page [DONE]
-
-Dedicated page for a single task. Fetches task by `id` param from `useTasks()`. Shows:
-- Sticky header with back navigation
-- `TaskMap` if coordinates exist
-- Status badge
-- Title, meta (location, deadline, assigned by), description
-- Action buttons (status update, Google Maps navigate)
-- Loading and not-found states
-
----
-
-#### `app/chat-list/page.tsx` — Worker Chat List [DONE]
-
-Conversation list for workers. Displays list of conversations with:
-- Initials avatar
-- Name + last message preview
-- Timestamp
-- Unread indicator dot
-
-Currently hardcoded mock data. Links each conversation to `/chat?id=...`.
-
----
-
-#### `app/chat/page.tsx` — Worker Chat [DONE]
-
-Chat interface with:
-- Desktop: sidebar (conversation list) + main chat area
-- Mobile: chat area only
-- Message history with sender/receiver differentiation and timestamps
-- Send message form (local state only, not connected to backend)
-
-Hardcoded mock data. Real-time backend pending.
-
----
-
-#### `app/profile/page.tsx` — Worker Profile [DONE]
-
-Worker profile screen:
-- Profile card: avatar, name, role badge, availability toggle
-- Stats: tasks done today, on-time %, this week
-- Settings list: Availability toggle, Notifications, Vehicle & equipment, Help & support, Sign out
-
-All UI only — settings not wired to API.
+Next.js Edge Runtime. Checks `session` cookie presence.
+- `/dashboard/*`, `/my-tasks`, `/team`, `/map`, `/chat` — protected
+- `/auth/signin`, `/auth/signup` — redirect to `/dashboard` if already logged in
 
 ---
 
@@ -842,7 +837,7 @@ All UI only — settings not wired to API.
 const { tasks, setTasks, loading, refresh } = useTasks()
 ```
 
-Calls `GET /tasks/list` on mount. Returns task array, manual setter (for optimistic updates), loading flag, and `refresh()` to re-fetch.
+Calls `GET /tasks/list` on mount. Returns task array, manual setter (for optimistic updates), loading flag, and `refresh()`.
 
 ---
 
@@ -862,17 +857,7 @@ Calls `PATCH /tasks/:id/status`. Returns updated `ITask` or `null`. Loading stat
 const { workers, loading } = useWorkers()
 ```
 
-Calls `GET /memberships/workers`. Returns `IWorker[]` for populating assignee dropdowns in manager views.
-
----
-
-#### `hooks/use-mobile.ts` — Mobile Detection [DONE]
-
-```ts
-const isMobile = useIsMobile()  // true if < 768px
-```
-
-Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
+Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 
 ---
 
@@ -898,24 +883,21 @@ Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
 - [x] Auth middleware + RBAC (`requiredRoles`)
 - [x] Auth context (`AuthProvider` + `useUser`)
 - [x] Invitations — create, list, accept
-- [x] **Tasks — create** (manager, with optional assignee + location)
-- [x] **Tasks — list** (role-filtered: manager sees all, worker sees assigned)
-- [x] **Tasks — update status** (worker updates own, manager updates any)
-- [x] **Tasks — full patch** (manager updates status + assignedTo together)
-- [x] **Memberships — list workers** (`GET /memberships/workers`)
-- [x] **Locations — update** (`POST /locations`) — stores `{ lat, lng, updatedAt }` in Redis (`location:{orgId}:{userId}`, TTL 1hr)
-- [x] **Locations — get all** (`GET /locations`) — manager fetches latest position of all workers via Redis `MGET`
-- [x] Socket.IO basic connection test (server: connect/disconnect logs; client: `test.tsx` probe component — **practice only, no real events yet**)
+- [x] Tasks — create, list, update status, full patch
+- [x] Memberships — list workers
+- [x] Locations REST — `POST /locations` + `GET /locations` (Redis-backed, TTL 1hr)
+- [x] **Socket.IO — real location events**: server auth middleware (session cookie), org rooms, `"location-update"` → Redis + broadcast `"worker-location"`
+- [x] **Live map page** — `WorkerListSidebar` + `LiveMap` + Socket.IO client subscription
+- [x] **Chat system** — shared `ConversationList` + `MessageThread` components, `chat-service.ts` typed mock layer
+- [x] **Manager chat page** (`/dashboard/chats`) — desktop layout
+- [x] **Worker chat page** (`/chats`) — mobile-first (list/thread toggle)
 - [x] Next.js route protection middleware
 - [x] `RoleGate` component (client-side RBAC guard)
-- [x] Google Maps integration (loader, location picker, task map, navigate)
-- [x] Manager dashboard with sidebar navigation
-- [x] Manager task table (filter by status, search by title)
-- [x] `CreateTaskModal` — full form with Google Maps + Places autocomplete
-- [x] `ManagerTaskPanel` — slide-in edit panel (status + assignee)
+- [x] Google Maps — loader, location picker, live map markers, task map, navigate
+- [x] Manager sidebar — all nav links wired to correct routes
+- [x] Manager task table — filter by status, search by title, create modal, edit panel
 - [x] Worker home page — task list with progress + stats
 - [x] Worker task detail — map + status progression + navigate
-- [x] Worker chat UI — list + chat interface (mock data, backend pending)
 - [x] Worker profile page (UI only)
 - [x] Worker bottom navigation
 - [x] `useTasks`, `useWorkers`, `useUpdateTaskStatus`, `useIsMobile` hooks
@@ -927,21 +909,18 @@ Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
 - [ ] Invitation decline endpoint
 - [ ] Email sending for invitations
 - [ ] `changePassword`, `forgotPassword`, `resetPassword` — defined, not exposed via routes
-- [ ] Dashboard map page (real-time worker locations)
 - [ ] Dashboard team page
-- [ ] Dashboard chat page (manager side)
 - [ ] Worker profile settings wired to API
-- [ ] `requireRole.ts` — can be deleted (superseded)
-- [ ] `src/lib/auth-utils.ts` — can be deleted (superseded)
+- [ ] Chat backend — real `GET /conversations`, `POST /conversations/:id/messages`
+- [ ] Socket.IO chat events (`chat:message`, `chat:read`, `chat:typing`)
 
 ### Not Started
 
-- [ ] Socket.IO real-time events (connection test done — actual `location:update` / `message:send` events pending)
 - [ ] Location history from DB (current: latest position only via Redis)
-- [ ] Messages endpoints + real-time delivery
-- [ ] Google Maps live tracking (markers for all workers, Socket.IO updates)
 - [ ] File uploads (Cloudflare R2)
 - [ ] Email service (Gmail SMTP for invitations)
+- [ ] Dashboard analytics / notifications
+- [ ] Query / search / filter / pagination on task endpoints (see `LATER.md`)
 
 ---
 
@@ -952,7 +931,7 @@ Uses `window.matchMedia("(max-width: 768px)")` with resize listener.
 | 1 | Project setup (server + client + DB schema) | Done |
 | 2 | Auth (signup, signin, signout, session, Zod) | Done |
 | 3 | Invitations + Tasks CRUD + Worker/Manager UI | Done |
-| 4 | Real-time location (Socket.IO events + Google Maps live tracking) | In Progress |
-| 5 | Real-time chat (DMs, read receipts, Socket.IO) | Pending |
+| 4 | Real-time location (Socket.IO + Google Maps live tracking) | Done |
+| 5 | Real-time chat (DMs, read receipts, Socket.IO) | In Progress |
 | 6 | Dashboard analytics + notifications | Pending |
 | 7–13 | Polish, testing, deployment, extras | Pending |

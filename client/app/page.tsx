@@ -5,7 +5,8 @@ import { useUser } from "@/context/authContext"
 import useTasks from "@/hooks/dashboard/tasks/useTasks"
 import { ITask, TaskStatus } from "@/interfaces"
 import { ChevronRight, Clock, MapPin } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { io } from "socket.io-client"
 
 function getInitials(name?: string) {
   if (!name) return "?"
@@ -76,6 +77,46 @@ export default function WorkerTasksPage() {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)))
     setSelectedTask(updated)
   }
+
+  useEffect(() => {
+    const socket = io(
+      process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8000",
+      {
+        withCredentials: true,
+      }
+    )
+
+    let watchId: number | null = null
+
+    if (typeof navigator !== "undefined" && "geolocation" in navigator) {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          socket.emit("location-update", { latitude, longitude })
+        },
+        (error) => {
+          console.error("Geolocation error:", error)
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 5000,
+          timeout: 10000,
+        }
+      )
+    } else {
+      console.warn("Geolocation is not available in this browser.")
+    }
+
+    console.log("WatchId: ", watchId)
+
+    return () => {
+      console.log("WatchId: ", watchId)
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId)
+      }
+      socket.disconnect()
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50">

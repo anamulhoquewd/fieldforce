@@ -35,18 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = async () => {
-    try {
-      const res = await api.get("/auth/me");
-      // backend returns { success, data: { userId, organizationId, role, ... } }
-      setUser(res.data.data);
-    } catch (err: any) {
-      setUser(null);
-      handleAxiosError(err)
-    } finally {
-      setLoading(false);
-    }
-  };
+ const fetchUser = async () => {
+   try {
+     const res = await api.get("/auth/me")
+     // backend returns { success, data: { userId, organizationId, role, ... } }
+     setUser(res.data.data)
+   } catch (err: any) {
+     setUser(null)
+     handleAxiosError(err)
+   } finally {
+     setLoading(false)
+   }
+ }
 
   useEffect(() => {
     let mounted = true;

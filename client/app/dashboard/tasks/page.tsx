@@ -1,7 +1,5 @@
 "use client"
 
-import { useState } from "react"
-import { MapPin, MoreVertical, Search } from "lucide-react"
 import { CreateTaskModal } from "@/components/create-task-modal"
 import { ManagerTaskPanel } from "@/components/dashboard/manager-task-panel"
 import { Button } from "@/components/ui/button"
@@ -9,6 +7,8 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import useTasks from "@/hooks/dashboard/tasks/useTasks"
 import { ITask } from "@/interfaces"
+import { MapPin, MoreVertical, Search } from "lucide-react"
+import { useState } from "react"
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ const statusConfig = {
 // ─── component ──────────────────────────────────────────────────────────────
 
 export default function TasksPage() {
-  const { tasks, setTasks, refresh } = useTasks()
+  const { tasks, setTasks } = useTasks()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<ITask | null>(null)
   const [filterStatus, setFilterStatus] = useState<
