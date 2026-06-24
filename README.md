@@ -44,7 +44,7 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 | HTTP Client | axios | — | API calls with cookie support |
 | Maps | Google Maps JavaScript API | — | Location picker, live map, navigation |
 | Toast | Sonner | — | Toast notifications |
-| Real-time | Socket.IO | — | Live location + chat |
+| Real-time | Socket.IO | — | Live location + real-time DM chat |
 | File Storage | Cloudflare R2 | — | User uploads (planned) |
 | Email | Gmail SMTP | — | Invitations (planned) |
 
@@ -128,7 +128,7 @@ fieldforce/
 │   │   └── index.ts                          # [DONE] ITask, IWorker, TaskStatus etc.
 │   ├── lib/
 │   │   ├── api.ts                            # [DONE] axios instance (withCredentials)
-│   │   ├── chat-service.ts                   # [DONE] Chat types + mock service functions
+│   │   ├── chat-service.ts                   # [DEPRECATED] Replaced by direct API + Socket.IO calls
 │   │   └── utils.ts                          # [DONE] cn, handleAxiosError, etc.
 │   ├── validations/
 │   │   └── zod.ts                            # [DONE] Zod schemas (auth + tasks)
@@ -156,25 +156,25 @@ fieldforce/
 │   │   │   ├── auth.ts                       # [DONE] /auth/*
 │   │   │   ├── invitations.ts                # [DONE] /invitations/*
 │   │   │   ├── tasks.ts                      # [DONE] /tasks/*
-│   │   │   ├── memberships.ts                # [DONE] /memberships/*
+│   │   │   ├── memberships.ts                # [DONE] /memberships/* (workers + manager)
 │   │   │   ├── locations.ts                  # [DONE] /locations/*
-│   │   │   └── messages.ts                   # [STUB] /messages/*
+│   │   │   └── messages.ts                   # [DONE] /messages/:userId
 │   │   ├── controllers/
 │   │   │   ├── index.ts                      # [DONE] Re-exports all controllers
 │   │   │   ├── auth.ts                       # [DONE] signup/signin/signout/fetchMe
 │   │   │   ├── invitations.ts                # [DONE] create/list/accept
 │   │   │   ├── tasks.ts                      # [DONE] create/list/updateStatus/patch
-│   │   │   ├── memberships.ts                # [DONE] getWorkerController
+│   │   │   ├── memberships.ts                # [DONE] getWorkerController + getManagerController
 │   │   │   ├── locations.ts                  # [DONE] updateLocation, getLocations
-│   │   │   └── messages.ts                   # [STUB]
+│   │   │   └── messages.ts                   # [DONE] getMessagesController
 │   │   └── services/
 │   │       ├── index.ts                      # [DONE] Re-exports all services
 │   │       ├── auth.ts                       # [DONE] signup/signin + password flows
 │   │       ├── invitations.ts                # [DONE] create/accept/fetchInvitations
 │   │       ├── tasks.ts                      # [DONE] create/list/updateStatus/patch
-│   │       ├── memberships.ts                # [DONE] getWorkersService
+│   │       ├── memberships.ts                # [DONE] getMembershipService (role param)
 │   │       ├── locations.ts                  # [DONE] updateLocation (Redis) + getLocations
-│   │       └── messages.ts                   # [STUB]
+│   │       └── messages.ts                   # [DONE] getMessagesService (DB query)
 │   ├── validations/
 │   │   └── index.ts                          # [DONE] Centralized Zod schemas
 │   ├── types/
@@ -418,6 +418,7 @@ Base path: `/api/v1`
 | Method | Path | Auth | Role | Status | Description |
 |---|---|---|---|---|---|
 | GET | `/memberships/workers` | Cookie | manager | **DONE** | List all workers in the org |
+| GET | `/memberships/manager` | Cookie | any | **DONE** | Get manager(s) in the org (used by worker chat) |
 
 ### Locations
 
@@ -426,12 +427,12 @@ Base path: `/api/v1`
 | POST | `/locations` | Cookie | any | **DONE** | Worker pushes GPS coordinates (stored in Redis) |
 | GET | `/locations` | Cookie | manager | **DONE** | Manager gets latest location of all workers |
 
-### Messages — `[STUB]`
-| Method | Path | Description |
-|---|---|---|
-| POST | `/messages` | Send DM |
-| GET | `/messages/:userId` | Get conversation |
-| PATCH | `/messages/:id/read` | Mark as read |
+### Messages
+| Method | Path | Auth | Status | Description |
+|---|---|---|---|---|
+| GET | `/messages/:userId` | Cookie | **DONE** | Fetch conversation history with another user |
+| POST | `/messages` | — | STUB | Send message via REST (sending is via Socket.IO) |
+| PATCH | `/messages/:id/read` | — | STUB | Mark as read via REST |
 
 ---
 
@@ -439,23 +440,28 @@ Base path: `/api/v1`
 
 All Socket.IO connections are authenticated via session cookie. On connect, each client joins `org:{organizationId}` room.
 
+Each client joins two rooms on connect:
+- `org:{organizationId}` — shared room for live location broadcasts
+- `user:{userId}` — personal inbox for DM delivery
+
 ### Client → Server
 
 | Event | Sender | Payload | Description |
 |---|---|---|---|
 | `location-update` | worker | `{ latitude, longitude }` | Worker pushes GPS position; server writes to Redis and broadcasts to org room |
+| `send-message` | any | `{ receiverId, content }` | Send a DM; server inserts to DB and emits `new-message` to both parties |
 
 ### Server → Client
 
 | Event | Receiver | Payload | Description |
 |---|---|---|---|
-| `worker-location` | manager (in org room) | `{ userId, latitude, longitude, updatedAt }` | Broadcast on every worker location update |
+| `worker-location` | manager (org room) | `{ userId, latitude, longitude, updatedAt }` | Broadcast on every worker location update |
+| `new-message` | sender + receiver (user room) | `IChatMessage` DB row | Delivered to both parties immediately on insert |
 
 ### Planned (not yet implemented)
 
 | Event | Direction | Description |
 |---|---|---|
-| `chat:message` | server → client | New message delivered in real time |
 | `chat:read` | client → server | Mark conversation as read |
 | `chat:typing` | client → server | Typing indicator |
 
@@ -539,8 +545,9 @@ pnpm drizzle-kit studio           # browser UI
 - Global 404 handler via `notFoundError`
 - **Socket.IO server** attached to the same Node.js HTTP server:
   - Auth middleware: parses signed `session` cookie from handshake headers → validates Redis session → attaches `socket.data.user`
-  - On connect: worker/manager joins `org:{organizationId}` room
-  - `"location-update"` event: worker-only; writes to Redis via `updateLocationService` and broadcasts `"worker-location"` to org room
+  - On connect: joins `org:{organizationId}` (location room) **and** `user:{userId}` (personal inbox)
+  - `"location-update"` event: worker-only; writes to Redis via `updateLocationService` + broadcasts `"worker-location"` to org room
+  - `"send-message"` event: inserts row into `messages` DB table → emits `"new-message"` to both `user:{receiverId}` and `user:{senderId}` rooms (sender gets echo)
 
 ---
 
@@ -611,9 +618,19 @@ All functions validate input via `zTasks.safeParse` and return `{ error }` / `{ 
 
 #### `src/services/memberships.ts` — Membership Service [DONE]
 
-**`getWorkersService({ organizationId })`**
-- Queries `memberships` joined with `users` where `role = "worker"`
+**`getMembershipService({ organizationId, role })`**
+- Queries `memberships` joined with `users` where `role` matches the param (`"worker"` or `"manager"`)
 - Returns `[{ id, name, email, role }]`
+- Used by `getWorkerController` (manager-only) and `getManagerController` (any auth user)
+
+---
+
+#### `src/services/messages.ts` — Messages Service [DONE]
+
+**`getMessagesService({ organizationId, userId, userB })`**
+- Queries `messages` table for all rows where `(senderId = userId AND receiverId = userB) OR (senderId = userB AND receiverId = userId)` within the same org
+- Ordered by `createdAt` ascending (chronological)
+- Returns `{ success, data: IChatMessage[] }`
 
 ---
 
@@ -628,68 +645,55 @@ All functions validate input via `zTasks.safeParse` and return `{ error }` / `{ 
 
 ---
 
-#### `lib/chat-service.ts` — Chat Service [DONE]
+#### `lib/chat-service.ts` — [DEPRECATED]
 
-Typed service layer for chat. All functions are async and currently return mock data. Each has a TODO comment showing the real API call to substitute when the backend is ready.
-
-**Types:**
-- `ChatMessage` — `{ id, conversationId, senderId, senderName, content, timestamp, status }`
-- `Conversation` — `{ id, type, name, participantId?, isOnline?, lastMessage, lastMessageAt, unreadCount }`
-
-**Functions:**
-- `getConversations(role)` — returns manager or worker conversation list
-- `getMessages(conversationId)` — returns message history for a conversation
-- `sendMessage(conversationId, senderName, content)` — pushes message to local store, returns new `ChatMessage`
-- `markAsRead(conversationId)` — no-op stub (TODO: `POST /conversations/:id/read`)
-
-**Socket events to wire up (documented in service file):**
-- `"chat:message"` → `{ conversationId, message: ChatMessage }`
-- `"chat:read"` → `{ conversationId, userId }`
-- `"chat:typing"` → `{ conversationId, userId, typing: boolean }`
+Previously held mock chat data. Now superseded — both chat pages call the real API and Socket.IO directly. The file remains but is no longer imported.
 
 ---
 
 #### `components/chat/conversation-list.tsx` — Conversation List [DONE]
 
-Shared between manager and worker chat pages.
+Used by the manager chat page. Accepts `IConversation[]` (real DB worker records) and renders a searchable list.
 
-- 300px fixed-width sidebar column
-- Name-based color avatar (deterministic palette) with online dot for direct chats
-- Group conversations show a `Users` icon
-- Search input filters by conversation name
-- Unread count badge
-- `headerLeft` slot — used by manager page to inject `SidebarTrigger`
+- Name-based color avatar with online dot
+- Search input filters by name
+- Unread count badge (updated via Socket.IO `new-message`)
+- `headerLeft` slot for `SidebarTrigger`
 - Selected conversation highlighted with blue left border
 
 ---
 
 #### `components/chat/message-thread.tsx` — Message Thread [DONE]
 
-Shared between manager and worker chat pages.
+Used by both manager and worker chat pages. Accepts `IChatMessage[]` (real DB rows).
 
+- `currentUserId` prop determines which side is "mine" (compares vs `msg.senderId`)
 - Groups messages by calendar day with date separators ("Today", "Yesterday", date)
 - Sent bubbles (blue, right-aligned) vs received bubbles (gray, left-aligned)
-- Message status icons: `Check` = sent, `CheckCheck` = delivered, `CheckCheck` white = read
-- Group chats: sender name label above first bubble in a run, avatar on last bubble
-- `onBack` prop (optional) — shows `ChevronLeft` button for mobile list→thread navigation
-- Auto-scrolls to bottom on new messages via `ref`
+- `onBack` prop (optional) — shows `ChevronLeft` for mobile navigation
+- Auto-scrolls to bottom on new messages
 - Empty state when no conversation selected
 
 ---
 
 #### `app/dashboard/chats/page.tsx` — Manager Chat Page [DONE]
 
-Desktop chat layout. `ConversationList` + `MessageThread` side by side. `SidebarTrigger` injected via `headerLeft` slot. Loads manager conversations on mount. Selecting a conversation loads messages and clears unread count.
+Fully wired to real backend. Desktop two-column layout: `ConversationList` + `MessageThread`.
+
+1. Loads worker list from `GET /memberships/workers` (conversation roster)
+2. On select: loads history from `GET /messages/:workerId`
+3. Socket.IO: joins on mount, `send-message` emits on send, `new-message` appends to thread and updates last-message in list
+4. Unread counter increments on incoming messages for non-active conversations
 
 ---
 
 #### `app/chats/page.tsx` — Worker Chat Page [DONE]
 
-Mobile-first chat layout. On mobile: shows list OR thread (not both). On desktop: side by side.
+Simplified to a single DM with the manager. Mobile-first full-screen layout.
 
-- `showThread` flag controls which panel is visible on mobile
-- `onBack` → returns to conversation list
-- Loads worker conversations (subset: manager DM + crew group) on mount
+1. Loads manager from `GET /memberships/manager`
+2. Loads history from `GET /messages/:managerId`
+3. Socket.IO: `send-message` on send, `new-message` appends to thread (filtered to manager's ID only)
 
 ---
 
@@ -888,9 +892,10 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 - [x] Locations REST — `POST /locations` + `GET /locations` (Redis-backed, TTL 1hr)
 - [x] **Socket.IO — real location events**: server auth middleware (session cookie), org rooms, `"location-update"` → Redis + broadcast `"worker-location"`
 - [x] **Live map page** — `WorkerListSidebar` + `LiveMap` + Socket.IO client subscription
-- [x] **Chat system** — shared `ConversationList` + `MessageThread` components, `chat-service.ts` typed mock layer
-- [x] **Manager chat page** (`/dashboard/chats`) — desktop layout
-- [x] **Worker chat page** (`/chats`) — mobile-first (list/thread toggle)
+- [x] **Messages backend** — `GET /messages/:userId` (DB history), `send-message` Socket.IO event → DB insert + `new-message` broadcast
+- [x] **Memberships** — `GET /memberships/manager` added alongside `/workers`
+- [x] **Manager chat page** (`/dashboard/chats`) — real-time DMs: loads worker roster, history from DB, Socket.IO send/receive
+- [x] **Worker chat page** (`/chats`) — single DM with manager; loads manager via `/memberships/manager`, history from DB, Socket.IO send/receive
 - [x] Next.js route protection middleware
 - [x] `RoleGate` component (client-side RBAC guard)
 - [x] Google Maps — loader, location picker, live map markers, task map, navigate
@@ -911,8 +916,10 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 - [ ] `changePassword`, `forgotPassword`, `resetPassword` — defined, not exposed via routes
 - [ ] Dashboard team page
 - [ ] Worker profile settings wired to API
-- [ ] Chat backend — real `GET /conversations`, `POST /conversations/:id/messages`
-- [ ] Socket.IO chat events (`chat:message`, `chat:read`, `chat:typing`)
+- [ ] `POST /messages` REST endpoint (sending is currently Socket.IO only)
+- [ ] `PATCH /messages/:id/read` — mark read via REST
+- [ ] `chat:read` and `chat:typing` Socket.IO events
+- [ ] Online/offline presence (currently always shown as online in chat UI)
 
 ### Not Started
 
@@ -932,6 +939,6 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 | 2 | Auth (signup, signin, signout, session, Zod) | Done |
 | 3 | Invitations + Tasks CRUD + Worker/Manager UI | Done |
 | 4 | Real-time location (Socket.IO + Google Maps live tracking) | Done |
-| 5 | Real-time chat (DMs, read receipts, Socket.IO) | In Progress |
+| 5 | Real-time chat (DMs via Socket.IO + DB persistence, history REST endpoint) | Done |
 | 6 | Dashboard analytics + notifications | Pending |
 | 7–13 | Polish, testing, deployment, extras | Pending |

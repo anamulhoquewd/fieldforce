@@ -4,8 +4,14 @@ import { Hono } from "hono";
 
 const membershipRoute = new Hono();
 
-membershipRoute.get("/workers", authMiddileware, requiredRoles("manager"), (c) =>
-  memberships.getWorkerController(c),
+membershipRoute.get(
+  "/workers",
+  authMiddileware,
+  requiredRoles("manager"),
+  (c) => memberships.getWorkerController(c),
+);
+membershipRoute.get("/manager", authMiddileware, (c) =>
+  memberships.getManagerController(c),
 );
 
 export default membershipRoute;

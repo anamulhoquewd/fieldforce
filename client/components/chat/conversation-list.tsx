@@ -1,8 +1,8 @@
 "use client"
 
+import { IConversation } from "@/app/dashboard/chats/page"
 import { cn } from "@/lib/utils"
-import { Conversation } from "@/lib/chat-service"
-import { PenSquare, Search, Users } from "lucide-react"
+import { PenSquare, Search } from "lucide-react"
 import { useState } from "react"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ function formatTime(iso: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 interface ConversationListProps {
-  conversations: Conversation[]
+  conversations: IConversation[]
   selectedId?: string
   onSelect: (id: string) => void
   headerLeft?: React.ReactNode // slot for SidebarTrigger (manager only)
@@ -70,7 +70,7 @@ export function ConversationList({
   )
 
   return (
-    <div className="flex w-[300px] shrink-0 flex-col border-r border-gray-100 bg-white">
+    <div className="flex w-75 shrink-0 flex-col border-r border-gray-100 bg-white">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3.5">
         {headerLeft}
@@ -89,7 +89,7 @@ export function ConversationList({
       <div className="px-4 py-2.5">
         <div className="relative">
           <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
             size={14}
           />
           <input
@@ -97,7 +97,7 @@ export function ConversationList({
             placeholder="Search messages..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pr-3 pl-8 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
       </div>
@@ -120,31 +120,26 @@ export function ConversationList({
               onClick={() => onSelect(conv.id)}
               className={cn(
                 "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50",
-                isSelected && "border-l-2 border-l-blue-500 bg-blue-50 hover:bg-blue-50"
+                isSelected &&
+                  "border-l-2 border-l-blue-500 bg-blue-50 hover:bg-blue-50"
               )}
             >
               {/* Avatar */}
               <div className="relative shrink-0">
-                {conv.type === "group" ? (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-500">
-                    <Users size={18} />
-                  </div>
-                ) : (
+                {
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
                     style={{ backgroundColor: color }}
                   >
                     {getInitials(conv.name)}
                   </div>
-                )}
-                {conv.type === "direct" && (
-                  <span
-                    className={cn(
-                      "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white",
-                      conv.isOnline ? "bg-green-500" : "bg-gray-300"
-                    )}
-                  />
-                )}
+                }
+                <span
+                  className={cn(
+                    "absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-white",
+                    true ? "bg-green-500" : "bg-gray-300"
+                  )}
+                />
               </div>
 
               {/* Text */}
@@ -153,21 +148,25 @@ export function ConversationList({
                   <p className="truncate text-sm font-semibold text-gray-900">
                     {conv.name}
                   </p>
-                  <span
-                    className={cn(
-                      "shrink-0 text-xs",
-                      conv.unreadCount > 0 ? "text-blue-600 font-medium" : "text-gray-400"
-                    )}
-                  >
-                    {formatTime(conv.lastMessageAt)}
-                  </span>
+                  {conv.lastMessageAt && (
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs",
+                        (conv.unreadCount ?? 0) > 0
+                          ? "font-medium text-blue-600"
+                          : "text-gray-400"
+                      )}
+                    >
+                      {formatTime(conv.lastMessageAt)}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center justify-between gap-2 mt-0.5">
+                <div className="mt-0.5 flex items-center justify-between gap-2">
                   <p className="truncate text-xs text-gray-500">
-                    {conv.lastMessage}
+                    {conv.lastMessage ?? ""}
                   </p>
-                  {conv.unreadCount > 0 && (
-                    <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[10px] font-bold text-white">
+                  {(conv.unreadCount ?? 0) > 0 && (
+                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[10px] font-bold text-white">
                       {conv.unreadCount}
                     </span>
                   )}

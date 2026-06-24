@@ -12,6 +12,9 @@ import { Server } from "socket.io";
 import { parseSigned } from "hono/utils/cookie";
 import { getSession } from "./lib/session.js";
 import { updateLocationService } from "./services/locations.js";
+import messageRoute from "./routes/messages.js";
+import { db } from "./db/index.js";
+import { messages } from "./db/schema.js";
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "field_force_dev_by_anam";
 const PORT = process.env.PORT || 3000;
@@ -37,19 +40,17 @@ app.get("/health", async (c) => {
   }
 });
 
-// Auth rotue
 app.route("/auth", authRoute);
 
-// invitations route
 app.route("/invitations", invitationRoute);
 
-// tasks route
 app.route("/tasks", taskRoute);
 
-// memberships
 app.route("/memberships", membershipRoute);
 
 app.route("/locations", locationRoute);
+
+app.route("/messages", messageRoute);
 
 // Global Error Handler
 app.onError((error: any, c) => {
@@ -123,9 +124,38 @@ io.use(async (socket, next) => {
 io.on("connection", (socket) => {
   const user = socket.data.user; // auth middleware থেকে { userId, organizationId, role }
 
-  const room = `org:${user.organizationId}`;
-  socket.join(room);
-  console.log(`📥 ${user.role} joined room: ${room}`);
+  const locationRoom = `org:${user.organizationId}`;
+  socket.join(locationRoom);
+
+  const messagesRoom = `user:${user.userId}`;
+  socket.join(messagesRoom);
+
+  socket.on(
+    "send-message",
+    async (data: { receiverId: string; content: string }) => {
+      console.log("Data: ", data.content);
+      if (!data.content || !data.receiverId) return;
+      try {
+        const [message] = await db
+          .insert(messages)
+          .values({
+            organizationId: user.organizationId,
+            content: data.content,
+            receiverId: data.receiverId,
+            senderId: user.userId,
+          })
+          .returning();
+
+        console.log("Message: ", message);
+
+        io.to(`user:${data.receiverId}`).emit("new-message", message);
+
+        socket.emit("new-message", message);
+      } catch (error: any) {
+        console.log("Error on socket.IO send message room");
+      }
+    },
+  );
 
   socket.on(
     "location-update",

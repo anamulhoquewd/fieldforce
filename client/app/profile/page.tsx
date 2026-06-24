@@ -2,8 +2,19 @@
 
 import { useState } from 'react';
 import { Bell, Truck, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
+import { useUser } from "@/context/authContext"
+
+function getInitials(name: string | null | undefined): string {
+  if (!name) return "?"
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("")
+}
 
 export default function ProfilePage() {
+  const { user, logout } = useUser()
   const [availability, setAvailability] = useState(true);
 
   return (
@@ -17,33 +28,20 @@ export default function ProfilePage() {
       <div className="bg-white border-b border-gray-200 px-4 py-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 font-bold text-2xl">
-            MR
+            {getInitials(user?.name)}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Marcus Reyes</h2>
-            <p className="text-sm text-gray-500">Field technician · Northgate Utilities</p>
+            <h2 className="text-xl font-bold text-gray-900">{user?.name ?? "—"}</h2>
+            <p className="text-sm text-gray-500 capitalize">{user?.role ?? "—"}</p>
             <div className="flex items-center gap-1 mt-1">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
-              <span className="text-xs font-medium text-green-600">Available</span>
+              <span className="text-xs font-medium text-green-600">
+                {availability ? "Available" : "Unavailable"}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">2</p>
-            <p className="text-xs text-gray-500 mt-1">Done today</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">96%</p>
-            <p className="text-xs text-gray-500 mt-1">On-time</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">23</p>
-            <p className="text-xs text-gray-500 mt-1">This week</p>
-          </div>
-        </div>
       </div>
 
       {/* Settings */}
@@ -106,7 +104,7 @@ export default function ProfilePage() {
         </button>
 
         {/* Sign Out */}
-        <button className="w-full px-4 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+        <button onClick={logout} className="w-full px-4 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
               <LogOut size={20} className="text-red-600" />

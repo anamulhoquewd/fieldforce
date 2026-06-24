@@ -1,101 +1,97 @@
 "use client"
 
-import { ConversationList } from "@/components/chat/conversation-list"
+import { IChatMessage, IConversation } from "@/app/dashboard/chats/page"
 import { MessageThread } from "@/components/chat/message-thread"
 import { useUser } from "@/context/authContext"
-import {
-  ChatMessage,
-  Conversation,
-  getConversations,
-  getMessages,
-  markAsRead,
-  sendMessage,
-} from "@/lib/chat-service"
-import { useCallback, useEffect, useState } from "react"
+import api from "@/lib/api"
+import { handleAxiosError } from "@/lib/utils"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { io, Socket } from "socket.io-client"
 
 export default function WorkerChatsPage() {
   const { user } = useUser()
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [selectedId, setSelectedId] = useState<string | undefined>()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  // On mobile: track whether we're showing the list or the thread
-  const [showThread, setShowThread] = useState(false)
+  const [manager, setManager] = useState<IConversation | null>(null)
+  const [messages, setMessages] = useState<IChatMessage[]>([])
+  const socketRef = useRef<Socket | null>(null)
+  const managerIdRef = useRef<string | undefined>(undefined)
+  const userIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
-    getConversations("worker").then(setConversations)
-  }, [])
+    userIdRef.current = user?.userId
+  }, [user?.userId])
 
   useEffect(() => {
-    if (!selectedId) {
-      setMessages([])
-      return
+    managerIdRef.current = manager?.id
+  }, [manager?.id])
+
+  // Fetch the single manager for this worker
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await api.get("/memberships/manager")
+        if (res.status === 200 && res.data.success) {
+          setManager(res.data.data[0])
+        }
+      } catch (err) {
+        handleAxiosError(err)
+      }
     }
-    getMessages(selectedId).then(setMessages)
-    markAsRead(selectedId)
-    setConversations((prev) =>
-      prev.map((c) => (c.id === selectedId ? { ...c, unreadCount: 0 } : c))
-    )
-  }, [selectedId])
-
-  const handleSelect = useCallback((id: string) => {
-    setSelectedId(id)
-    setShowThread(true)
+    load()
   }, [])
 
-  const handleBack = useCallback(() => {
-    setShowThread(false)
+  // Load message history once manager is known
+  useEffect(() => {
+    if (!manager?.id) return
+    const load = async () => {
+      try {
+        const res = await api.get(`/messages/${manager.id}`)
+        if (res.status === 200 && res.data?.success) {
+          setMessages(res.data.data)
+        }
+      } catch (err) {
+        handleAxiosError(err)
+      }
+    }
+    load()
+  }, [manager?.id])
+
+  // Single socket connection for the page lifetime
+  useEffect(() => {
+    const socket = io("http://localhost:8000", { withCredentials: true })
+    socketRef.current = socket
+
+    socket.on("new-message", (msg: IChatMessage) => {
+      const myId = userIdRef.current
+      const otherId = msg.senderId === myId ? msg.receiverId : msg.senderId
+      if (otherId === managerIdRef.current) {
+        setMessages((prev) => [...prev, msg])
+      }
+    })
+
+    return () => {
+      socket.disconnect()
+    }
   }, [])
 
   const handleSend = useCallback(
-    async (content: string) => {
-      if (!selectedId) return
-      const senderName = user?.name ?? "Worker"
-      const msg = await sendMessage(selectedId, senderName, content)
-      setMessages((prev) => [...prev, msg])
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === selectedId
-            ? { ...c, lastMessage: content, lastMessageAt: msg.timestamp }
-            : c
-        )
-      )
+    (content: string) => {
+      if (!manager?.id || !socketRef.current) return
+      socketRef.current.emit("send-message", {
+        receiverId: manager.id,
+        content,
+      })
     },
-    [selectedId, user?.name]
+    [manager]
   )
 
-  const selected = conversations.find((c) => c.id === selectedId) ?? null
-
   return (
-    // pb-16 on mobile to clear the bottom navigation bar
-    <div className="flex h-[100dvh] overflow-hidden pb-16 md:pb-0">
-      {/*
-       * Mobile: show list OR thread (not both).
-       * Desktop (md+): show both side by side.
-       */}
-      <div
-        className={`w-full flex-shrink-0 md:w-auto md:flex md:block ${
-          showThread ? "hidden md:flex" : "flex"
-        }`}
-      >
-        <ConversationList
-          conversations={conversations}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-        />
-      </div>
-
-      <div
-        className={`flex-1 overflow-hidden ${
-          showThread ? "flex" : "hidden md:flex"
-        }`}
-      >
-        <MessageThread
-          conversation={selected}
-          messages={messages}
-          onSend={handleSend}
-          onBack={handleBack}
-        />
-      </div>
+    <div className="flex h-dvh overflow-hidden pb-16 md:pb-0">
+      <MessageThread
+        conversation={manager}
+        messages={messages}
+        currentUserId={user?.userId}
+        onSend={handleSend}
+      />
     </div>
   )
 }

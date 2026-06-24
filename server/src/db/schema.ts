@@ -3,48 +3,11 @@ import {
   integer,
   pgEnum,
   pgTable,
+  real,
   timestamp,
   uuid,
   varchar,
-  real,
 } from "drizzle-orm/pg-core";
-
-export type Organizations = {
-  id: number;
-  name: string;
-  ownerId: number;
-  createdAt: Date;
-  updatedAt: Date;
-};
-export type Memberships = {
-  id: number;
-  userId: number;
-  organizationId: number;
-  role: "manager" | "employee";
-  joinedAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-};
-export type Locations = {
-  id: number;
-  userId: number;
-  organizationId: number;
-  latitude: number;
-  longitude: number;
-  recordedAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-};
-export type Messages = {
-  id: number;
-  organizationId: number;
-  senderId: number;
-  receiverId: number;
-  content: string;
-  readAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
 
 export const invitationStatuses = pgEnum("invitation_status", [
   "pending",

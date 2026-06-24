@@ -23,7 +23,6 @@ const tasksController = async (c: Context) => {
   return c.json(response, 201);
 };
 
-
 const fetchTasksController = async (c: Context) => {
   const user = c.get("user");
 
@@ -90,4 +89,10 @@ const taskPatchController = async (c: Context) => {
   return c.json(response, 200);
 };
 
-export { fetchTasksController, tasksController, taskUpdateController, taskPatchController };
+export {
+  fetchTasksController,
+  taskPatchController,
+  tasksController,
+  taskUpdateController,
+};
+

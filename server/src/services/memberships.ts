@@ -2,7 +2,13 @@ import { db } from "@/db/index.js";
 import { memberships, users } from "@/db/schema.js";
 import { and, eq } from "drizzle-orm";
 
-const getWorkersService = async (organizationId: string) => {
+const getMembershipService = async ({
+  organizationId,
+  role,
+}: {
+  organizationId: string;
+  role: "worker" | "manager";
+}) => {
   if (!organizationId)
     return {
       error: {
@@ -23,13 +29,13 @@ const getWorkersService = async (organizationId: string) => {
       .where(
         and(
           eq(memberships.organizationId, organizationId),
-          eq(memberships.role, "worker"),
+          eq(memberships.role, role),
         ),
       );
 
     return {
       success: true,
-      message: "Workers get successfully",
+      message: `${role}(s) get successfully`,
       data: workers,
     };
   } catch (error: any) {
@@ -43,5 +49,5 @@ const getWorkersService = async (organizationId: string) => {
   }
 };
 
-export { getWorkersService };
+export { getMembershipService };
 

@@ -1,16 +1,8 @@
 "use client"
 
+import { IChatMessage, IConversation } from "@/app/dashboard/chats/page"
 import { cn } from "@/lib/utils"
-import { ChatMessage, Conversation } from "@/lib/chat-service"
-import {
-  ArrowUp,
-  Check,
-  CheckCheck,
-  ChevronLeft,
-  Paperclip,
-  Phone,
-  Users,
-} from "lucide-react"
+import { ArrowUp, ChevronLeft, Paperclip, Phone, Users } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -63,13 +55,13 @@ function dateSeparatorLabel(iso: string): string {
 
 // Group messages into runs per calendar day
 function groupByDay(
-  messages: ChatMessage[]
-): { label: string; msgs: ChatMessage[] }[] {
-  const groups: { label: string; msgs: ChatMessage[] }[] = []
+  messages: IChatMessage[]
+): { label: string; msgs: IChatMessage[] }[] {
+  const groups: { label: string; msgs: IChatMessage[] }[] = []
   let currentLabel = ""
 
   for (const msg of messages) {
-    const label = dateSeparatorLabel(msg.timestamp)
+    const label = dateSeparatorLabel(msg?.createdAt)
     if (label !== currentLabel) {
       currentLabel = label
       groups.push({ label, msgs: [] })
@@ -81,12 +73,12 @@ function groupByDay(
 
 // ─── Status icon ─────────────────────────────────────────────────────────────
 
-function StatusIcon({ status }: { status: ChatMessage["status"] }) {
-  if (status === "sent") return <Check size={12} className="text-blue-200" />
-  if (status === "delivered")
-    return <CheckCheck size={12} className="text-blue-200" />
-  return <CheckCheck size={12} className="text-white" />
-}
+// function StatusIcon({ status }: { status: IChatMessage["status"] }) {
+//   if (status === "sent") return <Check size={12} className="text-blue-200" />
+//   if (status === "delivered")
+//     return <CheckCheck size={12} className="text-blue-200" />
+//   return <CheckCheck size={12} className="text-white" />
+// }
 
 // ─── Placeholder when no conversation selected ────────────────────────────────
 
@@ -105,15 +97,17 @@ function EmptyState() {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 interface MessageThreadProps {
-  conversation: Conversation | null
-  messages: ChatMessage[]
+  conversation: IConversation | null
+  messages: IChatMessage[]
+  currentUserId?: string
   onSend: (content: string) => void
-  onBack?: () => void // for mobile: navigate back to list
+  onBack?: () => void
 }
 
 export function MessageThread({
   conversation,
   messages,
+  currentUserId,
   onSend,
   onBack,
 }: MessageThreadProps) {
@@ -159,45 +153,34 @@ export function MessageThread({
 
         {/* Avatar */}
         <div className="relative shrink-0">
-          {conversation.type === "group" ? (
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-gray-500">
-              <Users size={16} />
-            </div>
-          ) : (
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
-              style={{ backgroundColor: color }}
-            >
-              {getInitials(conversation.name)}
-            </div>
-          )}
-          {conversation.type === "direct" && (
-            <span
-              className={cn(
-                "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white",
-                conversation.isOnline ? "bg-green-500" : "bg-gray-300"
-              )}
-            />
-          )}
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
+            style={{ backgroundColor: color }}
+          >
+            {getInitials(conversation.name)}
+          </div>
+
+          <span
+            className={cn(
+              "absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-white",
+              true ? "bg-green-500" : "bg-gray-300"
+            )}
+          />
         </div>
 
         {/* Name + status */}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900 leading-tight">
+          <p className="text-sm leading-tight font-semibold text-gray-900">
             {conversation.name}
           </p>
-          {conversation.type === "direct" ? (
-            <p
-              className={cn(
-                "text-xs leading-tight",
-                conversation.isOnline ? "text-green-600" : "text-gray-400"
-              )}
-            >
-              {conversation.isOnline ? "Online" : "Offline"}
-            </p>
-          ) : (
-            <p className="text-xs leading-tight text-gray-400">Group chat</p>
-          )}
+          <p
+            className={cn(
+              "text-xs leading-tight",
+              true ? "text-green-600" : "text-gray-400"
+            )}
+          >
+            {true ? "Online" : "Offline"}
+          </p>
         </div>
 
         {/* Right actions */}
@@ -208,8 +191,7 @@ export function MessageThread({
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+      <div className="flex-1 space-y-1 overflow-y-auto px-5 py-4">
         {groups.map(({ label, msgs }) => (
           <div key={label}>
             {/* Date separator */}
@@ -222,7 +204,7 @@ export function MessageThread({
             {/* Messages in this day */}
             <div className="space-y-2">
               {msgs.map((msg, i) => {
-                const isMine = msg.senderId === "me"
+                const isMine = !!currentUserId && msg.senderId === currentUserId
                 const isFirstInRun =
                   i === 0 || msgs[i - 1].senderId !== msg.senderId
                 const isLastInRun =
@@ -237,7 +219,7 @@ export function MessageThread({
                     )}
                   >
                     {/* Avatar for group chats — only on last in run */}
-                    {conversation.type === "group" && !isMine && (
+                    {/* {conversation.type === "group" && !isMine && (
                       <div className="shrink-0 w-7">
                         {isLastInRun && (
                           <div
@@ -248,7 +230,7 @@ export function MessageThread({
                           </div>
                         )}
                       </div>
-                    )}
+                    )} */}
 
                     <div
                       className={cn(
@@ -257,11 +239,11 @@ export function MessageThread({
                       )}
                     >
                       {/* Sender name in group (first in run only) */}
-                      {conversation.type === "group" && !isMine && isFirstInRun && (
+                      {/* {conversation.type === "group" && !isMine && isFirstInRun && (
                         <span className="mb-0.5 ml-1 text-[11px] font-semibold text-gray-500">
                           {msg.senderName}
                         </span>
-                      )}
+                      )} */}
 
                       {/* Bubble */}
                       <div
@@ -285,9 +267,9 @@ export function MessageThread({
                           )}
                         >
                           <span className="text-[11px] text-gray-400">
-                            {formatMsgTime(msg.timestamp)}
+                            {formatMsgTime(msg.createdAt)}
                           </span>
-                          {isMine && <StatusIcon status={msg.status} />}
+                          {/* {isMine && <StatusIcon status={msg.status} />} */}
                         </div>
                       )}
                     </div>
@@ -316,12 +298,12 @@ export function MessageThread({
           placeholder="Type a message..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         />
         <button
           type="submit"
           disabled={!input.trim()}
-          className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
         >
           <ArrowUp size={18} />
         </button>
