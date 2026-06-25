@@ -1,15 +1,14 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Dialog } from "radix-ui"
-import { XIcon, MapPin, Loader2, LocateFixed, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import useWorkers from "@/hooks/useWorkers"
+import { ITask } from "@/interfaces"
 import api from "@/lib/api"
 import { handleAxiosError } from "@/lib/utils"
-import { ITask } from "@/interfaces"
+import { AlertCircle, Loader2, LocateFixed, MapPin, XIcon } from "lucide-react"
+import { Dialog } from "radix-ui"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-
 
 interface CreateTaskModalProps {
   open: boolean
@@ -51,7 +50,9 @@ const inputCls =
 
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ""
 
-async function fetchPlaceSuggestions(input: string): Promise<PlaceSuggestion[]> {
+async function fetchPlaceSuggestions(
+  input: string
+): Promise<PlaceSuggestion[]> {
   if (!MAPS_API_KEY || input.length < 2) return []
   try {
     const res = await fetch(
@@ -71,7 +72,8 @@ async function fetchPlaceSuggestions(input: string): Promise<PlaceSuggestion[]> 
       .map((s: any) => ({
         placeId: s.placePrediction?.placeId ?? "",
         mainText: s.placePrediction?.structuredFormat?.mainText?.text ?? "",
-        secondaryText: s.placePrediction?.structuredFormat?.secondaryText?.text ?? "",
+        secondaryText:
+          s.placePrediction?.structuredFormat?.secondaryText?.text ?? "",
         fullText: s.placePrediction?.text?.text ?? "",
       }))
       .filter((s: PlaceSuggestion) => s.placeId)
@@ -107,11 +109,18 @@ async function fetchPlaceDetails(
   }
 }
 
-export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskModalProps) {
+export function CreateTaskModal({
+  open,
+  onOpenChange,
+  onCreated,
+}: CreateTaskModalProps) {
   const [form, setForm] = useState<FormState>(initialForm)
   const [submitting, setSubmitting] = useState(false)
   const [mapsReady, setMapsReady] = useState(
-    () => typeof window !== "undefined" && typeof google !== "undefined" && !!google?.maps
+    () =>
+      typeof window !== "undefined" &&
+      typeof google !== "undefined" &&
+      !!google?.maps
   )
   const [locating, setLocating] = useState(false)
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
@@ -136,7 +145,10 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
   // Close suggestions when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setShowSuggestions(false)
       }
     }
@@ -157,7 +169,8 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
 
   // Init / update mini map when coordinates change
   useEffect(() => {
-    if (!form.latitude || !form.longitude || !miniMapRef.current || !mapsReady) return
+    if (!form.latitude || !form.longitude || !miniMapRef.current || !mapsReady)
+      return
     const lat = form.latitude
     const lng = form.longitude
     const pos = { lat, lng }
@@ -177,22 +190,36 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
         draggable: true,
       })
 
-      miniMarkerRef.current.addListener("dragend", (e: google.maps.MapMouseEvent) => {
-        const newLat = e.latLng?.lat()
-        const newLng = e.latLng?.lng()
-        if (newLat != null && newLng != null) {
-          setForm((prev) => ({ ...prev, latitude: newLat, longitude: newLng }))
+      miniMarkerRef.current.addListener(
+        "dragend",
+        (e: google.maps.MapMouseEvent) => {
+          const newLat = e.latLng?.lat()
+          const newLng = e.latLng?.lng()
+          if (newLat != null && newLng != null) {
+            setForm((prev) => ({
+              ...prev,
+              latitude: newLat,
+              longitude: newLng,
+            }))
+          }
         }
-      })
+      )
 
-      miniMapInstance.current.addListener("click", (e: google.maps.MapMouseEvent) => {
-        const newLat = e.latLng?.lat()
-        const newLng = e.latLng?.lng()
-        if (newLat != null && newLng != null) {
-          setForm((prev) => ({ ...prev, latitude: newLat, longitude: newLng }))
-          miniMarkerRef.current?.setPosition({ lat: newLat, lng: newLng })
+      miniMapInstance.current.addListener(
+        "click",
+        (e: google.maps.MapMouseEvent) => {
+          const newLat = e.latLng?.lat()
+          const newLng = e.latLng?.lng()
+          if (newLat != null && newLng != null) {
+            setForm((prev) => ({
+              ...prev,
+              latitude: newLat,
+              longitude: newLng,
+            }))
+            miniMarkerRef.current?.setPosition({ lat: newLat, lng: newLng })
+          }
         }
-      })
+      )
     } else {
       miniMapInstance.current.setCenter(pos)
       miniMarkerRef.current?.setPosition(pos)
@@ -272,11 +299,17 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
 
         // Reverse geocode if Maps is ready
         if (mapsReady) {
-          new google.maps.Geocoder().geocode({ location: { lat, lng } }, (results, status) => {
-            if (status === "OK" && results?.[0]) {
-              setForm((prev) => ({ ...prev, address: results[0].formatted_address }))
+          new google.maps.Geocoder().geocode(
+            { location: { lat, lng } },
+            (results, status) => {
+              if (status === "OK" && results?.[0]) {
+                setForm((prev) => ({
+                  ...prev,
+                  address: results[0].formatted_address,
+                }))
+              }
             }
-          })
+          )
         }
         setLocating(false)
       },
@@ -288,7 +321,7 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
     )
   }
 
-  const handleSubmit = async (e: SubmitEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!form.title.trim()) return
     setSubmitting(true)
@@ -325,7 +358,7 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-6 shadow-xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-6 shadow-xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
           <div className="mb-5 flex items-center justify-between">
             <Dialog.Title className="text-lg font-semibold text-gray-900">
               Create Task
@@ -362,7 +395,9 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
                 rows={2}
                 placeholder="Brief description"
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
               />
             </div>
 
@@ -374,7 +409,9 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
               <select
                 className={inputCls}
                 value={form.assignedTo}
-                onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, assignedTo: e.target.value })
+                }
                 disabled={loadingWorkers}
               >
                 <option value="">
@@ -398,7 +435,10 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
                   className={inputCls}
                   value={form.status}
                   onChange={(e) =>
-                    setForm({ ...form, status: e.target.value as FormState["status"] })
+                    setForm({
+                      ...form,
+                      status: e.target.value as FormState["status"],
+                    })
                   }
                 >
                   <option value="pending">Pending</option>
@@ -414,7 +454,9 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
                   type="datetime-local"
                   className={inputCls}
                   value={form.deadline}
-                  onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, deadline: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -449,13 +491,15 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
                   value={form.address}
                   onChange={(e) => handleAddressChange(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  onFocus={() =>
+                    suggestions.length > 0 && setShowSuggestions(true)
+                  }
                   autoComplete="off"
                 />
 
                 {/* Suggestions dropdown */}
                 {showSuggestions && suggestions.length > 0 && (
-                  <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <ul className="absolute top-full right-0 left-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                     {suggestions.map((s, i) => (
                       <li
                         key={s.placeId}
@@ -490,9 +534,11 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
                   <AlertCircle size={13} className="mt-0.5 shrink-0" />
                   <span>
                     Add{" "}
-                    <code className="font-mono">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>{" "}
-                    to <code className="font-mono">.env</code> to enable address search.
-                    You can still use <em>Use my location</em>.
+                    <code className="font-mono">
+                      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+                    </code>{" "}
+                    to <code className="font-mono">.env</code> to enable address
+                    search. You can still use <em>Use my location</em>.
                   </span>
                 </div>
               )}
@@ -508,8 +554,8 @@ export function CreateTaskModal({ open, onOpenChange, onCreated }: CreateTaskMod
 
               {hasLocation && (
                 <p className="mt-1 text-xs text-gray-400">
-                  {form.latitude!.toFixed(5)}, {form.longitude!.toFixed(5)} · drag
-                  pin or click map to fine-tune
+                  {form.latitude!.toFixed(5)}, {form.longitude!.toFixed(5)} ·
+                  drag pin or click map to fine-tune
                 </p>
               )}
             </div>

@@ -20,7 +20,7 @@ import {
   type TChangePassword,
   type TForgotPassword,
   type TUser,
-} from "validations/index.js";
+} from "@/validations/index.js";
 
 const signupService = async (body: TUser) => {
   const data = zUserSchema.safeParse(body);

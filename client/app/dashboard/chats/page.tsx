@@ -33,8 +33,8 @@ export default function ManagerChatsPage() {
   const [selectedId, setSelectedId] = useState<string | undefined>()
   const [messages, setMessages] = useState<IChatMessage[]>([])
   const socketRef = useRef<Socket | null>(null)
-  const selectedIdRef = useRef<string | undefined>()
-  const userIdRef = useRef<string | undefined>()
+  const selectedIdRef = useRef<string | undefined>(undefined)
+  const userIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     selectedIdRef.current = selectedId
@@ -95,7 +95,8 @@ export default function ManagerChatsPage() {
   // Load message history when a conversation is selected
   useEffect(() => {
     if (!selectedId) {
-      setMessages([])
+      // Schedule clearing messages asynchronously to avoid synchronous setState in effect
+      Promise.resolve().then(() => setMessages([]))
       return
     }
     const load = async () => {

@@ -49,7 +49,6 @@ const taskUpdateController = async (c: Context) => {
 
   const body = await c.req.json();
   const user = c.get("user");
-  console.log("User: ", user);
 
   const response = await tasks.updateTaskService({
     status: body.status,

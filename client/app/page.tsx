@@ -107,10 +107,7 @@ export default function WorkerTasksPage() {
       console.warn("Geolocation is not available in this browser.")
     }
 
-    console.log("WatchId: ", watchId)
-
     return () => {
-      console.log("WatchId: ", watchId)
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId)
       }

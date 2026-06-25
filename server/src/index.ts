@@ -1,20 +1,20 @@
 import { serve } from "@hono/node-server";
 import "dotenv/config";
 import { Hono } from "hono";
-import authRoute from "./routes/auth.js";
-import invitationRoute from "./routes/invitations.js";
 import { cors } from "hono/cors";
-import { notFoundError } from "./errors/index.js";
-import taskRoute from "./routes/tasks.js";
-import membershipRoute from "./routes/memberships.js";
-import locationRoute from "./routes/locations.js";
-import { Server } from "socket.io";
 import { parseSigned } from "hono/utils/cookie";
-import { getSession } from "./lib/session.js";
-import { updateLocationService } from "./services/locations.js";
-import messageRoute from "./routes/messages.js";
+import { Server } from "socket.io";
 import { db } from "./db/index.js";
 import { messages } from "./db/schema.js";
+import { notFoundError } from "./errors/index.js";
+import { getSession } from "./lib/session.js";
+import authRoute from "./routes/auth.js";
+import invitationRoute from "./routes/invitations.js";
+import locationRoute from "./routes/locations.js";
+import membershipRoute from "./routes/memberships.js";
+import messageRoute from "./routes/messages.js";
+import taskRoute from "./routes/tasks.js";
+import { updateLocationService } from "./services/locations.js";
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "field_force_dev_by_anam";
 const PORT = process.env.PORT || 3000;
@@ -101,7 +101,6 @@ io.use(async (socket, next) => {
       SESSION_SECRET,
       "session",
     );
-    console.log("Signd: ", signedCookies);
     const sessionId = signedCookies.session;
 
     if (!sessionId || typeof sessionId !== "string") {
@@ -112,7 +111,6 @@ io.use(async (socket, next) => {
     if (!session) {
       return next(new Error("Invalid session - unauthorized"));
     }
-    console.log("Session: ", session);
 
     socket.data.user = session; // { userId, organizationId, role }
     next(); // সব ঠিক, connect হতে দাও
@@ -133,7 +131,6 @@ io.on("connection", (socket) => {
   socket.on(
     "send-message",
     async (data: { receiverId: string; content: string }) => {
-      console.log("Data: ", data.content);
       if (!data.content || !data.receiverId) return;
       try {
         const [message] = await db
@@ -145,8 +142,6 @@ io.on("connection", (socket) => {
             senderId: user.userId,
           })
           .returning();
-
-        console.log("Message: ", message);
 
         io.to(`user:${data.receiverId}`).emit("new-message", message);
 

@@ -1,8 +1,8 @@
 import { db } from "@/db/index.js";
 import { tasks } from "@/db/schema.js";
 import { schemaValidationError } from "@/errors/index.js";
+import { zTasks, type TTasks } from "@/validations/index.js";
 import { eq } from "drizzle-orm";
-import { zTasks, type TTasks } from "validations/index.js";
 
 const taskCreateService = async (body: TTasks) => {
   const data = zTasks.safeParse(body);
@@ -158,8 +158,6 @@ const updateTaskService = async (body: {
       };
     }
 
-    console.log("Role: ", role, "task: ", task, "user ID: ", userId);
-
     if (role === "worker" && task.assignedTo !== userId) {
       return {
         error: {
@@ -263,7 +261,8 @@ const patchTaskService = async (body: {
 
 export {
   fetchTasksService,
+  patchTaskService,
   taskCreateService,
   updateTaskService,
-  patchTaskService,
 };
+

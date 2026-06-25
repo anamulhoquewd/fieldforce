@@ -1,5 +1,4 @@
 import { db } from "@/db/index.js";
-import { organizations } from "@/db/schema.js";
 
 const getMessagesService = async (body: {
   organizationId: string;
@@ -7,9 +6,6 @@ const getMessagesService = async (body: {
   userB?: string;
 }) => {
   const { organizationId, userId, userB } = body;
-  console.log("Body: ", body.userB);
-  console.log("Org id: ", organizationId);
-  console.log("User: ", userId);
   if (!organizationId || !userId || !userB)
     return {
       error: {
@@ -29,8 +25,6 @@ const getMessagesService = async (body: {
         ),
       orderBy: (m, { asc }) => [asc(m.createdAt)],
     });
-
-    console.log("History: ", history);
 
     return {
       success: true,
