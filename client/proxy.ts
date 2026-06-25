@@ -7,7 +7,7 @@ const PROTECTED_ROUTES = ["/dashboard", "/my-tasks", "/team", "/map", "/chat"]
 // Routes only for logged-out users (redirect away if already logged in).
 const AUTH_ROUTES = ["/auth/signin", "/auth/signup"]
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // The session cookie set by your backend (httpOnly, readable here server-side).
