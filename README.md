@@ -33,7 +33,7 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 | Frontend | Next.js (App Router) | 16.2.6 | React framework, SSR, routing |
 | Frontend UI | Tailwind CSS v4 + shadcn/ui | 4.x | Design system & components |
 | Forms | React Hook Form + Zod | — | Form state + schema validation |
-| State | React Context API | — | Auth state (user, role) |
+| State | React Context API | — | Auth state (user, role) + shared Socket.IO instance |
 | Backend | Hono | 4.12.25 | Lightweight HTTP API server |
 | Backend Runtime | Node.js via `@hono/node-server` | 1.19.14 | Node adapter for Hono |
 | Backend Validation | Zod | — | Request body schema validation |
@@ -63,11 +63,11 @@ fieldforce/
 │   │   │   ├── layout.tsx                    # [DONE] Sidebar layout (persists open/closed state)
 │   │   │   ├── page.tsx                      # [DONE] Manager dashboard home
 │   │   │   ├── tasks/page.tsx                # [DONE] Task table + filter + search + create + edit panel
-│   │   │   ├── maps/page.tsx                 # [DONE] Live map — workers + tasks + Socket.IO
-│   │   │   ├── chats/page.tsx                # [DONE] Manager chat — ConversationList + MessageThread
-│   │   │   ├── test.tsx                      # [PRACTICE] Socket.IO connection test (dev only)
+│   │   │   ├── maps/page.tsx                 # [DONE] Live map — workers + tasks + useSocket()
+│   │   │   ├── chats/page.tsx                # [DONE] Manager chat — ConversationList + MessageThread + useSocket()
 │   │   │   └── team/page.tsx                 # [STUB] Team management page
-│   │   ├── chats/page.tsx                    # [DONE] Worker chat — ConversationList + MessageThread (mobile)
+│   │   ├── chats/page.tsx                    # [DONE] Worker chat — MessageThread + useSocket() (mobile)
+│   │   ├── chat-list/page.tsx                # [LEGACY-MOCK] Old worker chat list (hardcoded data, unused)
 │   │   ├── profile/page.tsx                  # [DONE] Worker profile + settings
 │   │   ├── tasks/[id]/page.tsx               # [DONE] Worker task detail page
 │   │   ├── globals.css                       # [DONE] Tailwind v4 + theme tokens
@@ -113,7 +113,8 @@ fieldforce/
 │   │   ├── team-switcher.tsx                 # [DONE] Sidebar team/org display
 │   │   └── theme-provider.tsx                # [DONE] Dark mode provider
 │   ├── context/
-│   │   └── authContext.ts                    # [DONE] AuthProvider + useUser hook
+│   │   ├── authContext.ts                    # [DONE] AuthProvider + useUser hook
+│   │   └── socketContext.tsx                 # [DONE] SocketProvider + useSocket hook (shared singleton)
 │   ├── hooks/
 │   │   ├── auth/
 │   │   │   ├── signup.ts                     # [DONE] useSignup()
@@ -135,7 +136,7 @@ fieldforce/
 │   ├── middleware.ts                          # [DONE] Route protection middleware
 │   ├── .env                                  # Frontend env vars
 │   ├── components.json                       # shadcn/ui config
-│   ├── next.config.ts
+│   ├── next.config.ts                        # [DONE] API + Socket.IO rewrites for Vercel deployment
 │   └── package.json
 │
 ├── server/                                   # Hono REST API
@@ -199,14 +200,16 @@ fieldforce/
 │  /dashboard/* (sidebar)           / (bottom nav)           │
 │   ├─ Tasks table + create         ├─ Task list + stats      │
 │   ├─ /dashboard/maps              ├─ /tasks/[id] detail    │
-│   │   WorkerListSidebar +         ├─ /chats (mobile)       │
-│   │   LiveMap + Socket.IO         └─ /profile              │
+│   │   WorkerListSidebar +         ├─ /chats (mobile DM)    │
+│   │   LiveMap + useSocket()       └─ /profile              │
 │   └─ /dashboard/chats                                       │
-│       ConversationList + MessageThread                      │
+│       ConversationList + MessageThread + useSocket()        │
 │                                                             │
+│  AuthProvider → SocketProvider (singleton socket, keyed    │
+│  on userId — null when logged out, auto-reconnect)         │
 │  middleware.ts — cookie route guard (Edge Runtime)          │
-│  AuthProvider — /auth/me on mount → user context           │
-│  axios (withCredentials) + Sonner toasts                   │
+│  next.config.ts — rewrites /api/v1/* + /socket.io/* to    │
+│  BACKEND_URL (Vercel proxy for deployment)                  │
 └───────────────┬────────────────────────┬────────────────────┘
                 │ REST :8000             │ Socket.IO :8000
 ┌───────────────▼────────────────────────▼────────────────────┐
@@ -496,6 +499,10 @@ R2_BUCKET=fieldforce
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_SOCKET_URL=http://localhost:8000
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-key
+
+# Deployment only (Vercel) — enables API + Socket.IO rewrites in next.config.ts
+# When set, the client proxies through Next.js instead of hitting the backend directly
+BACKEND_URL=https://your-backend.up.railway.app
 ```
 
 ---
@@ -682,7 +689,7 @@ Fully wired to real backend. Desktop two-column layout: `ConversationList` + `Me
 
 1. Loads worker list from `GET /memberships/workers` (conversation roster)
 2. On select: loads history from `GET /messages/:workerId`
-3. Socket.IO: joins on mount, `send-message` emits on send, `new-message` appends to thread and updates last-message in list
+3. Gets the shared socket via `useSocket()` — registers `"new-message"` listener with cleanup; `send-message` via `socket.emit`
 4. Unread counter increments on incoming messages for non-active conversations
 
 ---
@@ -693,7 +700,7 @@ Simplified to a single DM with the manager. Mobile-first full-screen layout.
 
 1. Loads manager from `GET /memberships/manager`
 2. Loads history from `GET /messages/:managerId`
-3. Socket.IO: `send-message` on send, `new-message` appends to thread (filtered to manager's ID only)
+3. Gets the shared socket via `useSocket()` — `send-message` on send, `new-message` appended (filtered to manager ID only)
 
 ---
 
@@ -738,7 +745,7 @@ Manager-only page at `/dashboard/maps`.
 
 1. Fetches workers (`GET /memberships/workers`), locations (`GET /locations`), tasks (`GET /tasks/list`) in parallel via `Promise.allSettled`
 2. Merges into `WorkerWithLocation[]` — worker is "online" if last location update < 5 minutes ago; current task is the first `pending` or `in_progress` task assigned to them
-3. Socket.IO connection: subscribes to `"worker-location"` events, updates `locationMap` state in real time → triggers re-render of markers
+3. Gets the shared socket via `useSocket()` — subscribes to `"worker-location"` events, updates `locationMap` state in real time → triggers re-render of markers
 4. `selectedWorkerId` state — shared between sidebar click, locate button, and map marker click
 5. Role guard: renders "only available to managers" if a worker somehow reaches this page
 
@@ -752,6 +759,26 @@ Manager-only page at `/dashboard/maps`.
 - `user` shape: `{ userId, name, email, organizationId, role }`
 
 `useUser()` hook — accesses context; throws if called outside `AuthProvider`.
+
+---
+
+#### `context/socketContext.tsx` — Socket Context [DONE]
+
+`SocketProvider` creates a **single shared Socket.IO connection** for the entire app. Previously each page (maps, chat) created its own `io()` call — now they all share one via context.
+
+- Instantiated with `useMemo` keyed on `user.userId` — one socket per user session
+- Returns `null` when the user is not authenticated (no wasted connection)
+- Auto-disconnects when the user logs out or the component unmounts
+- Passes `withCredentials: true` + reconnection config (5 attempts, 1–5s delay)
+- Reads `NEXT_PUBLIC_SOCKET_URL` for the server address (falls back to `undefined` so Vercel proxy works)
+
+`useSocket()` hook — returns `Socket | null`. All pages/components that need real-time events call this instead of creating their own connections.
+
+```tsx
+const socket = useSocket()
+socket?.emit("send-message", { receiverId, content })
+socket?.on("new-message", handler)
+```
 
 ---
 
@@ -827,6 +854,19 @@ Worker's primary task list screen (`/`):
 
 ---
 
+#### `next.config.ts` — Deployment Proxy [DONE]
+
+Rewrites configured for Vercel deployment. Only active when `BACKEND_URL` env var is set (local dev skips them, hitting the backend directly):
+
+| Source | Destination |
+|---|---|
+| `/api/v1/:path*` | `${BACKEND_URL}/api/v1/:path*` |
+| `/socket.io/:path*` | `${BACKEND_URL}/socket.io/:path*` |
+
+This lets the frontend and backend live on different domains without CORS issues in production — Vercel proxies both REST and Socket.IO through the Next.js server.
+
+---
+
 #### `middleware.ts` — Route Protection [DONE]
 
 Next.js Edge Runtime. Checks `session` cookie presence.
@@ -886,12 +926,14 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 - [x] Auth — signup, signin, signout, me
 - [x] Auth middleware + RBAC (`requiredRoles`)
 - [x] Auth context (`AuthProvider` + `useUser`)
+- [x] **Socket context** (`SocketProvider` + `useSocket`) — shared singleton connection, keyed on `userId`, null when logged out
 - [x] Invitations — create, list, accept
 - [x] Tasks — create, list, update status, full patch
 - [x] Memberships — list workers
 - [x] Locations REST — `POST /locations` + `GET /locations` (Redis-backed, TTL 1hr)
 - [x] **Socket.IO — real location events**: server auth middleware (session cookie), org rooms, `"location-update"` → Redis + broadcast `"worker-location"`
-- [x] **Live map page** — `WorkerListSidebar` + `LiveMap` + Socket.IO client subscription
+- [x] **Live map page** — `WorkerListSidebar` + `LiveMap` + `useSocket()` for real-time worker location
+- [x] **Deployment proxy** — `next.config.ts` rewrites `/api/v1/*` and `/socket.io/*` to `BACKEND_URL` for Vercel
 - [x] **Messages backend** — `GET /messages/:userId` (DB history), `send-message` Socket.IO event → DB insert + `new-message` broadcast
 - [x] **Memberships** — `GET /memberships/manager` added alongside `/workers`
 - [x] **Manager chat page** (`/dashboard/chats`) — real-time DMs: loads worker roster, history from DB, Socket.IO send/receive
@@ -920,6 +962,8 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 - [ ] `PATCH /messages/:id/read` — mark read via REST
 - [ ] `chat:read` and `chat:typing` Socket.IO events
 - [ ] Online/offline presence (currently always shown as online in chat UI)
+- [ ] `chat-list/page.tsx` — old mock worker chat list, still in codebase with hardcoded data; replace with real `/chats` page
+- [ ] `BottomNavigation` — still links to `/worker/chat` (non-existent); should link to `/chats`
 
 ### Not Started
 
