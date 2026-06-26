@@ -14,7 +14,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       return null
     }
 
-    return io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8000", {
+    return io(process.env.NEXT_PUBLIC_SOCKET_URL || undefined, {
       withCredentials: true,
       reconnection: true,
       reconnectionDelay: 1000,
