@@ -36,9 +36,11 @@ export function proxy(request: NextRequest) {
   return NextResponse.next()
 }
 
-// Only run middleware on these paths (skips static files, images, api, etc.)
+// Proxy runs on Node.js runtime.
+export const runtime = "nodejs"
+
+// Only run proxy on these paths (skips static files, images, api, etc.)
 export const config = {
-  runtime: "nodejs",
   matcher: [
     "/dashboard/:path*",
     "/my-tasks/:path*",
