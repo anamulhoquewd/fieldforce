@@ -36,9 +36,6 @@ export function proxy(request: NextRequest) {
   return NextResponse.next()
 }
 
-// Proxy runs on Node.js runtime.
-export const runtime = "nodejs"
-
 // Only run proxy on these paths (skips static files, images, api, etc.)
 export const config = {
   matcher: [
