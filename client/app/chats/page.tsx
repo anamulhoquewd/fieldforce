@@ -6,13 +6,13 @@ import { useUser } from "@/context/authContext"
 import api from "@/lib/api"
 import { handleAxiosError } from "@/lib/utils"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { io, Socket } from "socket.io-client"
+import { useSocket } from "@/context/socketContext"
 
 export default function WorkerChatsPage() {
   const { user } = useUser()
+  const socket = useSocket()
   const [manager, setManager] = useState<IConversation | null>(null)
   const [messages, setMessages] = useState<IChatMessage[]>([])
-  const socketRef = useRef<Socket | null>(null)
   const managerIdRef = useRef<string | undefined>(undefined)
   const userIdRef = useRef<string | undefined>(undefined)
 
@@ -55,33 +55,33 @@ export default function WorkerChatsPage() {
     load()
   }, [manager?.id])
 
-  // Single socket connection for the page lifetime
   useEffect(() => {
-    const socket = io("http://localhost:8000", { withCredentials: true })
-    socketRef.current = socket
+    if (!socket) return
 
-    socket.on("new-message", (msg: IChatMessage) => {
+    const handleNewMessage = (msg: IChatMessage) => {
       const myId = userIdRef.current
       const otherId = msg.senderId === myId ? msg.receiverId : msg.senderId
       if (otherId === managerIdRef.current) {
         setMessages((prev) => [...prev, msg])
       }
-    })
+    }
+
+    socket.on("new-message", handleNewMessage)
 
     return () => {
-      socket.disconnect()
+      socket.off("new-message", handleNewMessage)
     }
-  }, [])
+  }, [socket])
 
   const handleSend = useCallback(
     (content: string) => {
-      if (!manager?.id || !socketRef.current) return
-      socketRef.current.emit("send-message", {
+      if (!manager?.id || !socket) return
+      socket.emit("send-message", {
         receiverId: manager.id,
         content,
       })
     },
-    [manager]
+    [manager, socket]
   )
 
   return (

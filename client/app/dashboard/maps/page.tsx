@@ -7,8 +7,8 @@ import { useUser } from "@/context/authContext"
 import { ITask, IWorker } from "@/interfaces"
 import api from "@/lib/api"
 import { handleAxiosError } from "@/lib/utils"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { io, Socket } from "socket.io-client"
+import { useCallback, useEffect, useState } from "react"
+import { useSocket } from "@/context/socketContext"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -53,13 +53,13 @@ function mergeData(
 
 export default function MapPage() {
   const { user } = useUser()
+  const socket = useSocket()
   const [workers, setWorkers] = useState<IWorker[]>([])
   const [locationMap, setLocationMap] = useState<Map<string, ILocation>>(
     new Map()
   )
   const [tasks, setTasks] = useState<ITask[]>([])
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | undefined>()
-  const socketRef = useRef<Socket | null>(null)
 
   // Fetch workers, locations, and tasks in parallel
   useEffect(() => {
@@ -95,38 +95,28 @@ export default function MapPage() {
     load()
   }, [])
 
-  // Socket: subscribe to live worker-location events
   useEffect(() => {
-    const socket = io("http://localhost:8000", {
-      withCredentials: true,
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-    })
-    socketRef.current = socket
+    if (!socket) return
 
-    socket.on(
-      "worker-location",
-      (data: { userId: string; latitude: number; longitude: number; updatedAt?: string }) => {
-        setLocationMap((prev) => {
-          const next = new Map(prev)
-          next.set(data.userId, {
-            userId: data.userId,
-            latitude: data.latitude,
-            longitude: data.longitude,
-            updatedAt: data.updatedAt ?? new Date().toISOString(),
-          })
-          return next
+    const handleWorkerLocation = (data: { userId: string; latitude: number; longitude: number; updatedAt?: string }) => {
+      setLocationMap((prev) => {
+        const next = new Map(prev)
+        next.set(data.userId, {
+          userId: data.userId,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          updatedAt: data.updatedAt ?? new Date().toISOString(),
         })
-      }
-    )
+        return next
+      })
+    }
+
+    socket.on("worker-location", handleWorkerLocation)
 
     return () => {
-      socket.disconnect()
-      socketRef.current = null
+      socket.off("worker-location", handleWorkerLocation)
     }
-  }, [])
+  }, [socket])
 
   const enrichedWorkers = mergeData(workers, locationMap, tasks)
 
