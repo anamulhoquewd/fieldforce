@@ -29,8 +29,8 @@ const signupController = async (c: Context) => {
 
   await setSignedCookie(c, "session", response.data.sessionId, SESSION_SECRET, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Lax",
+    secure: true,
+    sameSite: "None",
     maxAge: 60 * 60 * 24 * 7, // 7 Days
     path: "/",
   });
@@ -53,10 +53,9 @@ const signinController = async (c: Context) => {
 
   await setSignedCookie(c, "session", response.data.sessionId, SESSION_SECRET, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Lax",
+    secure: true,
+    sameSite: "None",
     maxAge: 60 * 60 * 24 * 7, // 7 Days
-    // maxAge: 30, // 30s
     path: "/",
   });
 
