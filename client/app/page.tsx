@@ -6,7 +6,7 @@ import useTasks from "@/hooks/dashboard/tasks/useTasks"
 import { ITask, TaskStatus } from "@/interfaces"
 import { ChevronRight, Clock, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
-import { io } from "socket.io-client"
+import { useSocket } from "@/context/socketContext"
 
 function getInitials(name?: string) {
   if (!name) return "?"
@@ -67,6 +67,7 @@ function formatDate(d: Date) {
 export default function WorkerTasksPage() {
   const { tasks, setTasks, loading } = useTasks()
   const { user } = useUser()
+  const socket = useSocket()
   const [selectedTask, setSelectedTask] = useState<ITask | null>(null)
 
   const completedCount = tasks.filter((t) => t.status === "completed").length
@@ -79,12 +80,7 @@ export default function WorkerTasksPage() {
   }
 
   useEffect(() => {
-    const socket = io(
-      process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8000",
-      {
-        withCredentials: true,
-      }
-    )
+    if (!socket) return
 
     let watchId: number | null = null
 
@@ -111,9 +107,8 @@ export default function WorkerTasksPage() {
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId)
       }
-      socket.disconnect()
     }
-  }, [])
+  }, [socket])
 
   return (
     <div className="min-h-screen bg-gray-50">

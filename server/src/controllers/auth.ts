@@ -56,7 +56,6 @@ const signinController = async (c: Context) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: "Lax",
     maxAge: 60 * 60 * 24 * 7, // 7 Days
-    // maxAge: 30, // 30s
     path: "/",
   });
 

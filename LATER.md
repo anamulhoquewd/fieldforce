@@ -44,6 +44,10 @@ wait until the MVP is done.
   `conversations` table; current design is one-to-one only.
 - **Media messages** — Images, voice notes, file attachments.
 - **Message edit / delete / reactions.**
+- **Read receipts** — `PATCH /messages/:id/read` REST route + `chat:read` Socket.IO event.
+- **Typing indicator** — `chat:typing` Socket.IO event.
+- **Real-time online/offline presence** — Currently all contacts shown as "Online";
+  needs Socket.IO connect/disconnect tracking (e.g. a Redis set per org room).
 
 ## Query / Search / Filter / Pagination
 
@@ -65,11 +69,20 @@ wait until the MVP is done.
   to manage subscriptions, view usage stats across organizations, and handle
   billing — without accessing any org's internal data.
 
+## Cleanup
+
+- **`chat-list/page.tsx`** — Old mock worker chat list with hardcoded "Alex Morgan" etc.
+  Replace with a route redirect to `/chats` or delete entirely once `BottomNavigation` is updated.
+- **`BottomNavigation`** — Still links to `/worker/chat` which does not exist.
+  Should link to `/chats` to use the real chat page.
+
 ## Polish / Misc
 
 - **Push & email notifications** — Notify a manager when a task is completed,
   notify a worker when assigned a new task.
 - **Task photo proof** — Let a worker attach a photo when marking a task done.
+- **Worker profile stats** — "Done today", "On-time %", "This week" stats on
+  the profile page are removed; wire them to real task query counts.
 - **Empty `message` field fix** — The accept-invitation controller returns an
   empty `message`; wire the service's message through to the response.
 

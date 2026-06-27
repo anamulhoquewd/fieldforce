@@ -7,7 +7,7 @@ import { useUser } from "@/context/authContext"
 import api from "@/lib/api"
 import { handleAxiosError } from "@/lib/utils"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { io, Socket } from "socket.io-client"
+import { useSocket } from "@/context/socketContext"
 
 export interface IConversation {
   id: string
@@ -29,10 +29,10 @@ export interface IChatMessage {
 
 export default function ManagerChatsPage() {
   const { user } = useUser()
+  const socket = useSocket()
   const [conversations, setConversations] = useState<IConversation[]>([])
   const [selectedId, setSelectedId] = useState<string | undefined>()
   const [messages, setMessages] = useState<IChatMessage[]>([])
-  const socketRef = useRef<Socket | null>(null)
   const selectedIdRef = useRef<string | undefined>(undefined)
   const userIdRef = useRef<string | undefined>(undefined)
 
@@ -59,12 +59,10 @@ export default function ManagerChatsPage() {
     load()
   }, [])
 
-  // Single socket connection for the page lifetime
   useEffect(() => {
-    const socket = io("http://localhost:8000", { withCredentials: true })
-    socketRef.current = socket
+    if (!socket) return
 
-    socket.on("new-message", (msg: IChatMessage) => {
+    const handleNewMessage = (msg: IChatMessage) => {
       const myId = userIdRef.current
       const otherId = msg.senderId === myId ? msg.receiverId : msg.senderId
       const isOpen = otherId === selectedIdRef.current
@@ -85,12 +83,14 @@ export default function ManagerChatsPage() {
             : c
         )
       )
-    })
+    }
+
+    socket.on("new-message", handleNewMessage)
 
     return () => {
-      socket.disconnect()
+      socket.off("new-message", handleNewMessage)
     }
-  }, [])
+  }, [socket])
 
   // Load message history when a conversation is selected
   useEffect(() => {
@@ -119,10 +119,10 @@ export default function ManagerChatsPage() {
 
   const handleSend = useCallback(
     (content: string) => {
-      if (!selectedId || !socketRef.current) return
-      socketRef.current.emit("send-message", { receiverId: selectedId, content })
+      if (!selectedId || !socket) return
+      socket.emit("send-message", { receiverId: selectedId, content })
     },
-    [selectedId]
+    [selectedId, socket]
   )
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null
