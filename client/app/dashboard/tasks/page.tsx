@@ -22,7 +22,7 @@ const assigneeColors = [
 ]
 
 function getAssigneeColor(name: string) {
-  if (!name) return "bg-gray-100 text-gray-500"
+  if (!name) return "bg-muted text-muted-foreground"
   return assigneeColors[name.charCodeAt(0) % assigneeColors.length]
 }
 
@@ -100,7 +100,7 @@ export default function TasksPage() {
   return (
     <>
       {/* Topbar */}
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-100 px-6">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator
           orientation="vertical"
@@ -118,7 +118,7 @@ export default function TasksPage() {
               placeholder="Search tasks…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-56 rounded-lg border border-gray-200 py-2 pr-4 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-56 rounded-lg border border-border bg-background py-2 pr-4 pl-9 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:outline-none"
             />
           </div>
           <Button onClick={() => setIsCreateOpen(true)}>+ Create task</Button>
@@ -128,7 +128,7 @@ export default function TasksPage() {
       {/* Content */}
       <div className="p-6">
         {/* Status filter tabs */}
-        <div className="mb-6 flex gap-1 overflow-x-auto border-b border-gray-200">
+        <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
           {(
             [
               { key: "all", label: "All" },
@@ -153,10 +153,10 @@ export default function TasksPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="border-b border-gray-100 bg-gray-50">
+              <thead className="border-b border-border bg-muted/40">
                 <tr>
                   {[
                     "Task",
@@ -187,7 +187,7 @@ export default function TasksPage() {
                     <tr
                       key={task.id}
                       onClick={() => setSelectedTask(task)}
-                      className="cursor-pointer transition-colors hover:bg-gray-50"
+                      className="cursor-pointer transition-colors hover:bg-muted/40"
                     >
                       {/* Task */}
                       <td className="px-6 py-4">
@@ -270,7 +270,7 @@ export default function TasksPage() {
                           setSelectedTask(task)
                         }}
                       >
-                        <button className="rounded p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600">
+                        <button className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
                           <MoreVertical size={16} />
                         </button>
                       </td>

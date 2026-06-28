@@ -16,6 +16,20 @@ export const singinSchema = z.object({
 })
 export type SigninValues = z.infer<typeof singinSchema>
 
+export const acceptInvitationSchema = z.object({
+  name: z.string().min(3, "Name must be at least 3 characters"),
+  password: z
+    .string()
+    .min(6, "Password must be at least 6 characters")
+    .max(20, "Password must be at most 20 characters"),
+})
+export type AcceptInvitationValues = z.infer<typeof acceptInvitationSchema>
+
+export const inviteMemberSchema = z.object({
+  email: z.email("Invalid email address"),
+})
+export type InviteMemberValues = z.infer<typeof inviteMemberSchema>
+
 export const zTasks = z.object({
   id: z.string(),
   organizationId: z.string(),

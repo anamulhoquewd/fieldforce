@@ -111,27 +111,26 @@ export default function WorkerTasksPage() {
   }, [socket])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="sticky top-0 border-b border-gray-200 bg-white px-4 py-4 md:px-8 md:py-6">
+    <div className="min-h-screen bg-background">
+      <div className="sticky top-0 border-b border-border bg-background px-4 py-4 md:px-8 md:py-6">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 md:text-2xl">
+            <h1 className="text-xl font-bold text-foreground md:text-2xl">
               My tasks
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {formatDate(new Date())} · {inProgressCount} in progress
             </p>
           </div>
           {user?.name && (
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-200 text-sm font-bold text-blue-700">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
               {getInitials(user.name)}
             </div>
           )}
         </div>
 
         {/* Progress bar: completed / total */}
-        <div className="h-1 w-full rounded-full bg-gray-200">
+        <div className="h-1 w-full rounded-full bg-muted">
           <div
             className="h-1 rounded-full bg-teal-500 transition-all"
             style={{
@@ -141,7 +140,7 @@ export default function WorkerTasksPage() {
             }}
           />
         </div>
-        <p className="mt-1 text-right text-xs text-gray-400">
+        <p className="mt-1 text-right text-xs text-muted-foreground">
           {completedCount}/{totalCount} done
         </p>
       </div>
@@ -153,12 +152,12 @@ export default function WorkerTasksPage() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-24 animate-pulse rounded-lg bg-gray-200"
+                className="h-24 animate-pulse rounded-lg bg-muted"
               />
             ))}
           </div>
         ) : tasks.length === 0 ? (
-          <p className="py-12 text-center text-sm text-gray-400">
+          <p className="py-12 text-center text-sm text-muted-foreground">
             No tasks assigned to you.
           </p>
         ) : (
@@ -169,7 +168,7 @@ export default function WorkerTasksPage() {
                 onClick={() => setSelectedTask(task)}
                 className="block w-full text-left"
               >
-                <div className="rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md">
+                <div className="rounded-lg border border-border bg-card p-4 transition-shadow hover:shadow-md">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex items-center gap-2">

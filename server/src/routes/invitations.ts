@@ -11,7 +11,7 @@ invitationRoute.post(
   (c) => invitation.invitationController(c),
 );
 
-invitationRoute.get("/list", authMiddileware, requiredRoles("manager"), (c) =>
+invitationRoute.get("/", authMiddileware, requiredRoles("manager"), (c) =>
   invitation.listInvitationsController(c),
 );
 

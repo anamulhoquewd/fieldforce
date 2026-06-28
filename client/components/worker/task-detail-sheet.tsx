@@ -99,22 +99,22 @@ export function TaskDetailSheet({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 flex flex-col bg-white transition-transform duration-300 ease-out",
+        "fixed inset-0 z-50 flex flex-col bg-background transition-transform duration-300 ease-out",
         visible ? "translate-y-0" : "translate-y-full"
       )}
     >
       {/* Sticky header with back button */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
+      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background px-4 py-3">
         <button
           onClick={handleClose}
-          className="rounded-lg p-1 hover:bg-gray-100"
+          className="rounded-lg p-1 hover:bg-muted"
           aria-label="Go back"
         >
-          <ArrowLeft size={24} className="text-gray-700" />
+          <ArrowLeft size={24} className="text-foreground" />
         </button>
         <div className="min-w-0">
-          <h1 className="truncate font-semibold text-gray-900">{task.title}</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="truncate font-semibold text-foreground">{task.title}</h1>
+          <p className="text-xs text-muted-foreground">
             {task.organization?.name ?? ""}
           </p>
         </div>
@@ -128,8 +128,8 @@ export function TaskDetailSheet({
             <TaskMap coordinates={coords} title={task.title} />
           </div>
         ) : (
-          <div className="flex h-40 w-full items-center justify-center bg-gray-100">
-            <span className="text-sm text-gray-400">No location set</span>
+          <div className="flex h-40 w-full items-center justify-center bg-muted">
+            <span className="text-sm text-muted-foreground">No location set</span>
           </div>
         )}
 

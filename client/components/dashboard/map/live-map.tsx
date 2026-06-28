@@ -297,7 +297,7 @@ export function LiveMap({
       <div ref={mapRef} className="h-full w-full" />
 
       {/* Task pin legend — bottom-left, 2-col grid */}
-      <div className="absolute bottom-6 left-4 rounded-xl border border-gray-100 bg-white px-4 py-3.5 shadow-md">
+      <div className="absolute bottom-6 left-4 rounded-xl border border-border bg-background px-4 py-3.5 shadow-md">
         <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
           Task pins
         </p>

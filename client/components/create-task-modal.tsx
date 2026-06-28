@@ -358,7 +358,7 @@ export function CreateTaskModal({
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-6 shadow-xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-background p-6 shadow-xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
           <div className="mb-5 flex items-center justify-between">
             <Dialog.Title className="text-lg font-semibold text-gray-900">
               Create Task
@@ -499,12 +499,12 @@ export function CreateTaskModal({
 
                 {/* Suggestions dropdown */}
                 {showSuggestions && suggestions.length > 0 && (
-                  <ul className="absolute top-full right-0 left-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <ul className="absolute top-full right-0 left-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
                     {suggestions.map((s, i) => (
                       <li
                         key={s.placeId}
                         onMouseDown={() => handleSelectSuggestion(s)}
-                        className={`flex cursor-pointer items-start gap-2 px-3 py-2.5 text-sm hover:bg-gray-50 ${
+                        className={`flex cursor-pointer items-start gap-2 px-3 py-2.5 text-sm hover:bg-muted/50 ${
                           i === activeSuggestion ? "bg-blue-50" : ""
                         }`}
                       >
@@ -545,11 +545,11 @@ export function CreateTaskModal({
 
               {/* Mini map — height animates open once location is set */}
               <div
-                className={`mt-2 overflow-hidden rounded-lg border border-gray-200 transition-all duration-300 ${
+                className={`mt-2 overflow-hidden rounded-lg border border-border transition-all duration-300 ${
                   hasLocation ? "h-44" : "h-0 border-0"
                 }`}
               >
-                <div ref={miniMapRef} className="h-full w-full bg-gray-100" />
+                <div ref={miniMapRef} className="h-full w-full bg-muted" />
               </div>
 
               {hasLocation && (

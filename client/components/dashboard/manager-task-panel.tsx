@@ -1,9 +1,8 @@
 "use client"
 
 import { ITask, TaskStatus } from "@/interfaces"
+import usePatchTask from "@/hooks/dashboard/tasks/usePatchTask"
 import useWorkers from "@/hooks/useWorkers"
-import api from "@/lib/api"
-import { handleAxiosError } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import {
   X,
@@ -55,7 +54,7 @@ export function ManagerTaskPanel({
 }: ManagerTaskPanelProps) {
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus>("pending")
   const [selectedWorker, setSelectedWorker] = useState<string>("")
-  const [saving, setSaving] = useState(false)
+  const { patchTask, saving } = usePatchTask()
   const { workers } = useWorkers()
 
   // Sync local state when a different task is selected
@@ -80,36 +79,25 @@ export function ManagerTaskPanel({
       return
     }
 
-    setSaving(true)
-    try {
-      const res = await api.patch(`/tasks/${task.id}`, updates)
-      if (!res.data.success) {
-        toast.error("Failed to update task")
-        return
-      }
-      // The patch endpoint doesn't re-fetch relations; merge locally
-      const updatedWorker =
-        updates.assignedTo != null
-          ? workers.find((w) => w.id === updates.assignedTo) ?? null
-          : updates.assignedTo === null
-            ? null
-            : task.assignedWorker
+    const patched = await patchTask(task.id, updates)
+    if (!patched) return
 
-      const merged: ITask = {
-        ...task,
-        ...res.data.data,
-        assignedWorker: updatedWorker,
-        creator: task.creator,
-        organization: task.organization,
-      }
+    const updatedWorker =
+      updates.assignedTo != null
+        ? workers.find((w) => w.id === updates.assignedTo) ?? null
+        : updates.assignedTo === null
+          ? null
+          : task.assignedWorker
 
-      toast.success("Task updated")
-      onTaskUpdated(task.id, merged)
-    } catch (err: any) {
-      handleAxiosError(err)
-    } finally {
-      setSaving(false)
+    const merged: ITask = {
+      ...task,
+      ...patched,
+      assignedWorker: updatedWorker,
+      creator: task.creator,
+      organization: task.organization,
     }
+
+    onTaskUpdated(task.id, merged)
   }
 
   const isDirty =
@@ -130,12 +118,12 @@ export function ManagerTaskPanel({
       {/* Panel */}
       <aside
         className={cn(
-          "fixed right-0 top-0 z-40 flex h-full w-105 flex-col bg-white shadow-2xl transition-transform duration-300",
+          "fixed right-0 top-0 z-40 flex h-full w-105 flex-col bg-background shadow-2xl transition-transform duration-300",
           task ? "translate-x-0" : "translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+        <div className="flex items-start justify-between border-b border-border px-6 py-5">
           <div className="min-w-0 pr-4">
             <div className="mb-1 flex items-center gap-2">
               <span
@@ -144,17 +132,17 @@ export function ManagerTaskPanel({
                   task ? statusDot[task.status] : "bg-gray-300"
                 )}
               />
-              <span className="text-xs font-medium text-gray-500">
+              <span className="text-xs font-medium text-muted-foreground">
                 #{task?.id.slice(0, 8).toUpperCase()}
               </span>
             </div>
-            <h2 className="text-base font-semibold text-gray-900 leading-snug">
+            <h2 className="text-base font-semibold text-foreground leading-snug">
               {task?.title}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <X size={18} />
           </button>
@@ -164,13 +152,13 @@ export function ManagerTaskPanel({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {/* Editable: Status */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Status
             </label>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value as TaskStatus)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {statusOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -182,13 +170,13 @@ export function ManagerTaskPanel({
 
           {/* Editable: Assignee */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Assigned worker
             </label>
             <select
               value={selectedWorker}
               onChange={(e) => setSelectedWorker(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">— Unassigned —</option>
               {workers.map((w) => (
@@ -200,17 +188,17 @@ export function ManagerTaskPanel({
           </div>
 
           {/* Divider */}
-          <hr className="border-gray-100" />
+          <hr className="border-border" />
 
           {/* Read-only info */}
           <div className="space-y-4">
             {/* Description */}
             {task?.description && (
               <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Description
                 </p>
-                <p className="text-sm leading-relaxed text-gray-700">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   {task.description}
                 </p>
               </div>
@@ -218,12 +206,12 @@ export function ManagerTaskPanel({
 
             {/* Deadline */}
             <div className="flex gap-3">
-              <Clock size={16} className="mt-0.5 shrink-0 text-gray-400" />
+              <Clock size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Deadline
                 </p>
-                <p className="text-sm text-gray-800">
+                <p className="text-sm text-foreground">
                   {formatDate(task?.deadline ?? null)}
                 </p>
               </div>
@@ -232,12 +220,12 @@ export function ManagerTaskPanel({
             {/* Location */}
             {task?.latitude && task?.longitude && (
               <div className="flex gap-3">
-                <MapPin size={16} className="mt-0.5 shrink-0 text-gray-400" />
+                <MapPin size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Location
                   </p>
-                  <p className="text-sm text-gray-800">
+                  <p className="text-sm text-foreground">
                     {task.latitude.toFixed(5)}, {task.longitude.toFixed(5)}
                   </p>
                   <a
@@ -254,12 +242,12 @@ export function ManagerTaskPanel({
 
             {/* Created by */}
             <div className="flex gap-3">
-              <User size={16} className="mt-0.5 shrink-0 text-gray-400" />
+              <User size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Created by
                 </p>
-                <p className="text-sm text-gray-800">
+                <p className="text-sm text-foreground">
                   {task?.creator?.name ?? "—"}
                 </p>
               </div>
@@ -267,12 +255,12 @@ export function ManagerTaskPanel({
 
             {/* Created at */}
             <div className="flex gap-3">
-              <Calendar size={16} className="mt-0.5 shrink-0 text-gray-400" />
+              <Calendar size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Created
                 </p>
-                <p className="text-sm text-gray-800">
+                <p className="text-sm text-foreground">
                   {formatDate(task?.createdAt ?? null)}
                 </p>
               </div>
@@ -281,7 +269,7 @@ export function ManagerTaskPanel({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+        <div className="flex gap-3 border-t border-border px-6 py-4">
           <Button
             variant="outline"
             className="flex-1"

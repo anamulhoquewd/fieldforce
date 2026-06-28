@@ -50,7 +50,7 @@ export function TaskMap({ coordinates, title }: TaskMapProps) {
   }, [coordinates])
 
   return (
-    <div className="relative h-full w-full bg-gray-200">
+    <div className="relative h-full w-full bg-muted">
       <div ref={mapRef} className="h-full w-full" />
     </div>
   )

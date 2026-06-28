@@ -1,6 +1,6 @@
 "use client"
 
-import { IChatMessage, IConversation } from "@/app/dashboard/chats/page"
+import { IChatMessage, IConversation } from "@/interfaces"
 import { cn } from "@/lib/utils"
 import { ArrowUp, ChevronLeft, Paperclip, Phone, Users } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -85,11 +85,13 @@ function groupByDay(
 function EmptyState() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-        <Users size={24} className="text-gray-400" />
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+        <Users size={24} className="text-muted-foreground" />
       </div>
-      <p className="text-sm font-medium text-gray-600">Select a conversation</p>
-      <p className="text-xs text-gray-400">Choose a contact from the list to start messaging.</p>
+      <p className="text-sm font-medium text-foreground">Select a conversation</p>
+      <p className="text-xs text-muted-foreground">
+        Choose a contact from the list to start messaging.
+      </p>
     </div>
   )
 }
@@ -129,7 +131,7 @@ export function MessageThread({
 
   if (!conversation) {
     return (
-      <div className="flex flex-1 flex-col bg-gray-50">
+      <div className="flex flex-1 flex-col bg-muted/30">
         <EmptyState />
       </div>
     )
@@ -139,13 +141,13 @@ export function MessageThread({
   const color = colorFor(conversation.name)
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-white">
+    <div className="flex flex-1 flex-col overflow-hidden bg-background">
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-gray-100 px-5 py-3.5">
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3.5">
         {onBack && (
           <button
             onClick={onBack}
-            className="mr-1 shrink-0 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
+            className="mr-1 shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
           >
             <ChevronLeft size={20} />
           </button>
@@ -160,32 +162,20 @@ export function MessageThread({
             {getInitials(conversation.name)}
           </div>
 
-          <span
-            className={cn(
-              "absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-white",
-              true ? "bg-green-500" : "bg-gray-300"
-            )}
-          />
+          <span className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500" />
         </div>
 
-        {/* Name + status */}
         <div className="min-w-0 flex-1">
-          <p className="text-sm leading-tight font-semibold text-gray-900">
+          <p className="text-sm leading-tight font-semibold text-foreground">
             {conversation.name}
           </p>
-          <p
-            className={cn(
-              "text-xs leading-tight",
-              true ? "text-green-600" : "text-gray-400"
-            )}
-          >
-            {true ? "Online" : "Offline"}
+          <p className="text-xs leading-tight text-green-600 dark:text-green-400">
+            Online
           </p>
         </div>
 
-        {/* Right actions */}
         <div className="flex items-center gap-1">
-          <button className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+          <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
             <Phone size={17} />
           </button>
         </div>
@@ -196,9 +186,9 @@ export function MessageThread({
           <div key={label}>
             {/* Date separator */}
             <div className="flex items-center gap-3 py-3">
-              <div className="flex-1 border-t border-gray-100" />
-              <span className="text-xs text-gray-400 lowercase">{label}</span>
-              <div className="flex-1 border-t border-gray-100" />
+              <div className="flex-1 border-t border-border" />
+              <span className="text-xs text-muted-foreground lowercase">{label}</span>
+              <div className="flex-1 border-t border-border" />
             </div>
 
             {/* Messages in this day */}
@@ -250,8 +240,8 @@ export function MessageThread({
                         className={cn(
                           "max-w-xs px-3.5 py-2 text-sm leading-relaxed",
                           isMine
-                            ? "rounded-2xl rounded-br-sm bg-blue-600 text-white"
-                            : "rounded-2xl rounded-bl-sm bg-gray-100 text-gray-900"
+                            ? "rounded-2xl rounded-br-sm bg-primary text-primary-foreground"
+                            : "rounded-2xl rounded-bl-sm bg-muted text-foreground"
                         )}
                         style={{ maxWidth: "min(320px, 65vw)" }}
                       >
@@ -266,7 +256,7 @@ export function MessageThread({
                             isMine ? "flex-row-reverse" : "flex-row"
                           )}
                         >
-                          <span className="text-[11px] text-gray-400">
+                          <span className="text-[11px] text-muted-foreground">
                             {formatMsgTime(msg.createdAt)}
                           </span>
                           {/* {isMine && <StatusIcon status={msg.status} />} */}
@@ -285,11 +275,11 @@ export function MessageThread({
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="flex shrink-0 items-center gap-2 border-t border-gray-100 bg-white px-4 py-3"
+        className="flex shrink-0 items-center gap-2 border-t border-border bg-background px-4 py-3"
       >
         <button
           type="button"
-          className="shrink-0 rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Paperclip size={18} />
         </button>
@@ -298,12 +288,12 @@ export function MessageThread({
           placeholder="Type a message..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="flex-1 rounded-xl border border-border bg-muted/50 px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:outline-none"
         />
         <button
           type="submit"
           disabled={!input.trim()}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
         >
           <ArrowUp size={18} />
         </button>
