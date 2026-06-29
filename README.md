@@ -94,6 +94,12 @@ fieldforce/
 │   │   │   ├── conversation-list.tsx         # [DONE] Shared conversation list (manager + worker)
 │   │   │   └── message-thread.tsx            # [DONE] Shared message thread (manager + worker)
 │   │   ├── dashboard/
+│   │   │   ├── dahsboard-overview.tsx         # [DONE] Dashboard home — aggregates stat cards + charts
+│   │   │   ├── stat-card.tsx                 # [ENHANCED] Compact stat cards with live data (smaller, cuter design)
+│   │   │   ├── task-status-chart.tsx         # [ENHANCED] Pie chart showing task distribution by status
+│   │   │   ├── recent-tasks-table.tsx        # [DONE] Table listing recent tasks
+│   │   │   ├── worker-status-list.tsx        # [ENHANCED] Worker list with real-time online/offline status
+│   │   │   ├── sidebar.tsx                   # [DONE] Dashboard sidebar layout
 │   │   │   ├── manager-task-panel.tsx        # [DONE] Task edit side panel
 │   │   │   └── map/
 │   │   │       ├── live-map.tsx              # [DONE] Google Maps live worker + task markers
@@ -459,9 +465,11 @@ Each client joins two rooms on connect:
 | Event | Receiver | Payload | Description |
 |---|---|---|---|
 | `worker-location` | manager (org room) | `{ userId, latitude, longitude, updatedAt }` | Broadcast on every worker location update |
+| `worker-status-changed` | manager (org room) | `{ userId, status: 'Online'\|'Away'\|'Offline', lastSeen }` | Broadcast on worker connect/disconnect (real-time presence) |
+| `worker-tasks-updated` | manager (org room) | `{ userId, activeTasks: number }` | Broadcast when worker's active task count changes |
 | `new-message` | sender + receiver (user room) | `IChatMessage` DB row | Delivered to both parties immediately on insert |
 
-### Planned (not yet implemented)
+### Client → Server (Planned)
 
 | Event | Direction | Description |
 |---|---|---|
@@ -821,6 +829,82 @@ On submit: `POST /tasks/register` → calls `onCreated()` callback → closes mo
 
 ---
 
+#### `app/dashboard/page.tsx` — Manager Dashboard [DONE]
+
+Manager's dashboard home at `/dashboard`:
+- Displays real-time task statistics using `DashboardOverview` component
+- Shows total tasks, completed, pending, in progress, and overdue counts
+- Includes task status pie chart and recent tasks table
+- Fetches live data via `useTasks()` and renders stat cards with real-time updates
+
+---
+
+#### `components/dashboard/dahsboard-overview.tsx` — Dashboard Overview [DONE]
+
+Aggregates all dashboard components and manages data flow:
+- Fetches tasks and workers from API
+- Groups tasks by status (pending, in_progress, completed, overdue)
+- Renders stat cards showing task counts by status
+- Displays task status distribution chart
+- Shows worker status and recent tasks
+- Provides a complete executive summary for managers
+
+---
+
+#### `components/dashboard/stat-card.tsx` — Stat Card [ENHANCED]
+
+Compact, animated stat card component displaying a single metric:
+- **Enhancements**: Reduced size (smaller, cuter design), smooth hover animations (scale + shadow)
+- **Icon badge**: Colored circular background with status icon, scales on hover with slight rotation
+- **Stats display**: Value in large bold text, optional subtitle, optional trend percentage with arrow
+- **Colors**: Configurable accent colors (blue, green, purple, orange) with dark mode support
+- **Animation**: Scale-up on hover (105%), dual-dot background accents, smooth transitions
+
+Used for: Total Tasks, Completed, Pending, In Progress, Overdue counts.
+
+---
+
+#### `components/dashboard/task-status-chart.tsx` — Task Status Chart [ENHANCED]
+
+Pie chart showing task distribution by status:
+- **Enhancements**: Fixed data key from `status` to `count`, proper color rendering with hex values
+- **Status breakdown**: Pending (orange), In Progress (blue), Completed (green), Overdue (red)
+- **Legend**: Bottom legend showing count per status with colored dots
+- **Total counter**: Displays total task count with trending indicator
+- **Responsive**: Auto-scales to container, handles zero-count statuses gracefully
+
+---
+
+#### `components/dashboard/recent-tasks-table.tsx` — Recent Tasks Table [DONE]
+
+Table displaying the most recently created or updated tasks:
+- Shows task title, assignee, status, deadline, and progress
+- Supports sorting and filtering
+- Integrates with the manager task panel for inline editing
+
+---
+
+#### `components/dashboard/worker-status-list.tsx` — Worker Status List [ENHANCED]
+
+Sidebar component showing real-time worker status and activity:
+- **Enhancements**: Now tracks real-time online/offline status via Socket.IO events
+- **Status badges**: 🟢 Online, 🟡 Away, ⚫ Offline with color-coded styling
+- **Live info**: Shows active task count per worker, last seen timestamp when offline
+- **Avatar with status dot**: Worker initials in colored circle with status indicator
+- **Count header**: Live count of online workers updated in real-time
+- **Socket.IO integration**: Listens to `worker-status-changed` and `worker-tasks-updated` events
+
+---
+
+#### `components/dashboard/sidebar.tsx` — Dashboard Sidebar [DONE]
+
+Collapsible sidebar layout for the dashboard:
+- Persists open/closed state to browser cookie
+- Houses navigation items and team switcher
+- Mobile-responsive drawer on small screens
+
+---
+
 #### `components/dashboard/manager-task-panel.tsx` — Task Edit Panel [DONE]
 
 Right-side slide-in panel for managers editing a selected task.
@@ -943,6 +1027,10 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 - [x] Google Maps — loader, location picker, live map markers, task map, navigate
 - [x] Manager sidebar — all nav links wired to correct routes
 - [x] Manager task table — filter by status, search by title, create modal, edit panel
+- [x] **Dashboard stat cards** [ENHANCED] — real-time task counts with smaller, cuter design + smooth animations
+- [x] **Task status chart** [ENHANCED] — pie chart showing task distribution with fixed colors + legend
+- [x] **Worker status list** [ENHANCED] — real-time online/offline presence via Socket.IO (`worker-status-changed`, `worker-tasks-updated` events)
+- [x] **Real-time online/offline presence** — Socket.IO events for worker status changes, integrated with live map + dashboard
 - [x] Worker home page — task list with progress + stats
 - [x] Worker task detail — map + status progression + navigate
 - [x] Worker profile page (UI only)
@@ -961,7 +1049,6 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 - [ ] `POST /messages` REST endpoint (sending is currently Socket.IO only)
 - [ ] `PATCH /messages/:id/read` — mark read via REST
 - [ ] `chat:read` and `chat:typing` Socket.IO events
-- [ ] Online/offline presence (currently always shown as online in chat UI)
 - [ ] `chat-list/page.tsx` — old mock worker chat list, still in codebase with hardcoded data; replace with real `/chats` page
 - [ ] `BottomNavigation` — still links to `/worker/chat` (non-existent); should link to `/chats`
 

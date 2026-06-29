@@ -12,6 +12,7 @@ export interface WorkerWithLocation {
   updatedAt?: string
   isOnline: boolean
   currentTask?: ITask
+  totalAssignedTask?: ITask[]
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

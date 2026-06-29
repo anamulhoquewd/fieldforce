@@ -2,6 +2,9 @@ export interface IWorker {
   id: string
   name: string
   email: string
+  status?: 'Online' | 'Away' | 'Offline'
+  activeTasks?: number
+  lastSeen?: string
 }
 
 export interface ICreator {

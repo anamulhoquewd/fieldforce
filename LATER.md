@@ -46,8 +46,6 @@ wait until the MVP is done.
 - **Message edit / delete / reactions.**
 - **Read receipts** — `PATCH /messages/:id/read` REST route + `chat:read` Socket.IO event.
 - **Typing indicator** — `chat:typing` Socket.IO event.
-- **Real-time online/offline presence** — Currently all contacts shown as "Online";
-  needs Socket.IO connect/disconnect tracking (e.g. a Redis set per org room).
 
 ## Query / Search / Filter / Pagination
 

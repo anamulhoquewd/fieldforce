@@ -1,12 +1,20 @@
 "use client"
 
-import { CreateInvitationModal } from "@/components/team/create-invitation-modal"
-import { PendingInvitations } from "@/components/team/pending-invitations"
 import {
   getInitials,
   getWorkerColor,
 } from "@/components/dashboard/map/live-map"
+import { CreateInvitationModal } from "@/components/team/create-invitation-modal"
+import { PendingInvitations } from "@/components/team/pending-invitations"
 import { Badge } from "@/components/ui/badge"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -64,7 +72,7 @@ export default function TeamPage() {
     }))
   }
 
-  const handleInvited = (_invitation: IInvitation) => {
+  const handleInvited = (_: IInvitation) => {
     refresh()
     setInvitationOpen(false)
   }
@@ -77,7 +85,17 @@ export default function TeamPage() {
           orientation="vertical"
           className="mr-2 data-vertical:h-4 data-vertical:self-auto"
         />
-        <h1 className="text-xl font-semibold text-foreground">Members</h1>
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem className="hidden md:block">
+              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block" />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Members</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
         <p className="text-sm text-muted-foreground">
           {filteredMembers.length}{" "}
           {filteredMembers.length === 1 ? "person" : "people"}
@@ -173,7 +191,7 @@ export default function TeamPage() {
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className="border-primary/30 bg-transparent capitalize text-primary hover:bg-transparent"
+                      className="border-primary/30 bg-transparent text-primary capitalize hover:bg-transparent"
                     >
                       {member.role}
                     </Badge>

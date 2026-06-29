@@ -10,7 +10,7 @@ import { useCallback, useMemo, useState } from "react"
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000
 
-function mergeData(
+export function mergeData(
   workers: IWorker[],
   locationMap: Map<string, ILocation>,
   tasks: ITask[]
@@ -25,13 +25,32 @@ function mergeData(
         t.assignedTo === worker.id &&
         (t.status === "in_progress" || t.status === "pending")
     )
+    const assignedTasks = tasks.reduce(
+      (acc, curr) => {
+        const isCurrent =
+          curr.assignedTo === worker.id &&
+          (curr.status === "in_progress" || curr.status === "pending")
+        if (isCurrent) {
+          acc.currentTask = curr
+        }
+
+        if (curr.assignedTo === worker.id) {
+          acc.assignedTasks.push(curr)
+        }
+
+        return acc
+      },
+      { currentTask: {} as ITask, assignedTasks: [] as ITask[] }
+    )
+
     return {
       ...worker,
       latitude: loc?.latitude,
       longitude: loc?.longitude,
       updatedAt: loc?.updatedAt,
       isOnline,
-      currentTask,
+      currentTask: assignedTasks.currentTask,
+      totalAssignedTask: assignedTasks.assignedTasks,
     }
   })
 }
