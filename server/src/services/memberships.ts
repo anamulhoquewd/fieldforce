@@ -17,7 +17,7 @@ const getMembershipService = async ({
     };
 
   try {
-    const workers = await db
+    const members = await db
       .select({
         id: users.id,
         name: users.name,
@@ -36,7 +36,7 @@ const getMembershipService = async ({
     return {
       success: true,
       message: `${role}(s) get successfully`,
-      data: workers,
+      data: members,
     };
   } catch (error: any) {
     return {

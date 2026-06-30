@@ -2,7 +2,8 @@ export interface IWorker {
   id: string
   name: string
   email: string
-  status?: 'Online' | 'Away' | 'Offline'
+  status?: "Online" | "Away" | "Offline"
+  role: "worker" | "manager"
   activeTasks?: number
   lastSeen?: string
 }

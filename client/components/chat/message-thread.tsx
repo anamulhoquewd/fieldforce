@@ -36,7 +36,7 @@ function formatMsgTime(iso: string): string {
   })
 }
 
-function dateSeparatorLabel(iso: string): string {
+export function dateSeparatorLabel(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
   const diffDays = Math.floor(
@@ -88,7 +88,9 @@ function EmptyState() {
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
         <Users size={24} className="text-muted-foreground" />
       </div>
-      <p className="text-sm font-medium text-foreground">Select a conversation</p>
+      <p className="text-sm font-medium text-foreground">
+        Select a conversation
+      </p>
       <p className="text-xs text-muted-foreground">
         Choose a contact from the list to start messaging.
       </p>
@@ -187,7 +189,9 @@ export function MessageThread({
             {/* Date separator */}
             <div className="flex items-center gap-3 py-3">
               <div className="flex-1 border-t border-border" />
-              <span className="text-xs text-muted-foreground lowercase">{label}</span>
+              <span className="text-xs text-muted-foreground lowercase">
+                {label}
+              </span>
               <div className="flex-1 border-t border-border" />
             </div>
 
@@ -195,8 +199,8 @@ export function MessageThread({
             <div className="space-y-2">
               {msgs.map((msg, i) => {
                 const isMine = !!currentUserId && msg.senderId === currentUserId
-                const isFirstInRun =
-                  i === 0 || msgs[i - 1].senderId !== msg.senderId
+                // const isFirstInRun =
+                //   i === 0 || msgs[i - 1].senderId !== msg.senderId
                 const isLastInRun =
                   i === msgs.length - 1 || msgs[i + 1].senderId !== msg.senderId
 

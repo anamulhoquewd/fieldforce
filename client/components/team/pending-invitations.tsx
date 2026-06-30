@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button"
 import useInvitation from "@/hooks/dashboard/team/useInvitation"
 import { Mail, RotateCcw, X } from "lucide-react"
 import { useState } from "react"
-import { timeAgo } from "../dashboard/map/worker-list-sidebar"
+import { dateSeparatorLabel } from "../chat/message-thread"
 
 export function PendingInvitations() {
-  const { invitations } = useInvitation()
+  const { invitations } = useInvitation(null)
   const [resending, setResending] = useState<string | null>(null)
 
   const pendingInvitations = invitations.filter(
@@ -33,9 +33,7 @@ export function PendingInvitations() {
   return (
     <div className="mt-12 space-y-4">
       <div className="flex items-center gap-2">
-        <h4 className="font-semibold text-foreground">
-          Pending invitations
-        </h4>
+        <h4 className="font-semibold text-foreground">Pending invitations</h4>
         <span className="inline-flex items-center justify-center rounded-full bg-muted px-2.5 py-0.5 text-sm font-medium text-muted-foreground">
           {pendingInvitations.length}
         </span>
@@ -57,7 +55,7 @@ export function PendingInvitations() {
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Invited as {invitation.role.toLowerCase()} · sent{" "}
-                  {timeAgo(invitation.createdAt)}
+                  {dateSeparatorLabel(invitation.createdAt)}
                 </p>
               </div>
             </div>

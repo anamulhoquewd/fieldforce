@@ -7,23 +7,24 @@ const useWorkers = () => {
   const [workers, setWorkers] = useState<IWorker[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await api.get("/memberships/workers")
-        if (response.data.success) {
-          setWorkers(response.data.data)
-        }
-      } catch (error: any) {
-        handleAxiosError(error)
-      } finally {
-        setLoading(false)
+  const load = async () => {
+    try {
+      const response = await api.get("/memberships/workers")
+      if (response.status === 200 && response.data.success) {
+        setWorkers(response.data.data)
       }
+    } catch (error: any) {
+      handleAxiosError(error)
+    } finally {
+      setLoading(false)
     }
-    load()
+  }
+
+  useEffect(() => {
+    Promise.resolve().then(load)
   }, [])
 
-  return { workers, loading }
+  return { workers, loading, setWorkers, refresh: load }
 }
 
 export default useWorkers

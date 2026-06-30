@@ -35,7 +35,6 @@ import {
 import { useUser } from "@/context/authContext"
 import useInvitation from "@/hooks/dashboard/team/useInvitation"
 import useMembership from "@/hooks/dashboard/team/useMembership"
-import { IInvitation } from "@/interfaces"
 import { MoreHorizontal, Search } from "lucide-react"
 import { useMemo, useState } from "react"
 
@@ -43,11 +42,15 @@ type RoleType = "manager" | "worker"
 
 export default function TeamPage() {
   const { user } = useUser()
-  const { refresh } = useInvitation()
+  const {
+    registerForm: form,
+    handleRegisterSubmit: handleSubmit,
+    invitationOpen,
+    setInvitationOpen,
+  } = useInvitation(null)
   const { memberships } = useMembership()
   const [filters, setFilters] = useState<{ role?: RoleType }>({})
   const [searchQuery, setSearchQuery] = useState("")
-  const [invitationOpen, setInvitationOpen] = useState(false)
 
   const filteredMembers = useMemo(() => {
     return memberships
@@ -70,11 +73,6 @@ export default function TeamPage() {
       ...prev,
       [key]: prev[key] === value ? undefined : value,
     }))
-  }
-
-  const handleInvited = (_: IInvitation) => {
-    refresh()
-    setInvitationOpen(false)
   }
 
   return (
@@ -250,7 +248,8 @@ export default function TeamPage() {
       <CreateInvitationModal
         open={invitationOpen}
         onOpenChange={setInvitationOpen}
-        onInvited={handleInvited}
+        handleSubmit={handleSubmit}
+        form={form}
       />
     </main>
   )

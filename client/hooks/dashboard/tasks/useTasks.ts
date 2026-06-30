@@ -26,7 +26,7 @@ const useTasks = () => {
   }, [])
 
   useEffect(() => {
-    loadTasks()
+    Promise.resolve().then(loadTasks)
   }, [loadTasks])
 
   return { tasks, setTasks, loading, refresh: loadTasks }

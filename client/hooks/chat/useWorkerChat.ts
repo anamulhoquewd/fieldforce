@@ -76,7 +76,7 @@ function useWorkerChat() {
         content,
       })
     },
-    [manager?.id, socket]
+    [manager, socket]
   )
 
   return { user, manager, messages, handleSend }
