@@ -30,6 +30,8 @@ export function NavMain({
     }[]
   }[]
 }) {
+    if (items.length <= 0) return null
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Platform</SidebarGroupLabel>

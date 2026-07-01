@@ -1,18 +1,14 @@
-"use client"
-
 import { MessageThread } from "@/components/chat/message-thread"
-import useWorkerChat from "@/hooks/chat/useWorkerChat"
+
+export const metadata = {
+  title: "Worker Chats",
+  description: "Chat with your workers",
+}
 
 export default function WorkerChatsPage() {
-  const { user, manager, messages, handleSend } = useWorkerChat()
-
   return (
-    <MessageThread
-      conversation={manager}
-      messages={messages}
-      currentUserId={user?.userId}
-      onSend={handleSend}
-      onBack={() => window.history.back()}
-    />
+    <>
+      <MessageThread />
+    </>
   )
 }

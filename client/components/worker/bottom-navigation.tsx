@@ -8,10 +8,10 @@ export function BottomNavigation() {
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/worker', label: 'My Tasks', icon: ClipboardList },
-    { href: '/worker/chat', label: 'Chat', icon: MessageSquare, badge: 1 },
-    { href: '/worker/profile', label: 'Profile', icon: User },
-  ];
+    { href: "/", label: "My Tasks", icon: ClipboardList },
+    { href: "/chats", label: "Chat", icon: MessageSquare, badge: 1 },
+    { href: "/profile", label: "Profile", icon: User },
+  ]
 
   const isActive = (href: string) => pathname === href;
 

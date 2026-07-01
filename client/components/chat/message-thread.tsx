@@ -1,6 +1,7 @@
 "use client"
 
-import { IChatMessage, IConversation } from "@/interfaces"
+import useWorkerChat from "@/hooks/chat/useWorkerChat"
+import { IChatMessage } from "@/interfaces"
 import { cn } from "@/lib/utils"
 import { ArrowUp, ChevronLeft, Paperclip, Phone, Users } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -80,7 +81,7 @@ function groupByDay(
 //   return <CheckCheck size={12} className="text-white" />
 // }
 
-// ─── Placeholder when no conversation selected ────────────────────────────────
+// ─── Placeholder when no manager selected ────────────────────────────────
 
 function EmptyState() {
   return (
@@ -88,9 +89,7 @@ function EmptyState() {
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
         <Users size={24} className="text-muted-foreground" />
       </div>
-      <p className="text-sm font-medium text-foreground">
-        Select a conversation
-      </p>
+      <p className="text-sm font-medium text-foreground">Select a manager</p>
       <p className="text-xs text-muted-foreground">
         Choose a contact from the list to start messaging.
       </p>
@@ -100,21 +99,9 @@ function EmptyState() {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-interface MessageThreadProps {
-  conversation: IConversation | null
-  messages: IChatMessage[]
-  currentUserId?: string
-  onSend: (content: string) => void
-  onBack?: () => void
-}
+export function MessageThread() {
+  const { user, manager, messages, handleSend } = useWorkerChat()
 
-export function MessageThread({
-  conversation,
-  messages,
-  currentUserId,
-  onSend,
-  onBack,
-}: MessageThreadProps) {
   const [input, setInput] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -127,11 +114,11 @@ export function MessageThread({
     e.preventDefault()
     const trimmed = input.trim()
     if (!trimmed) return
-    onSend(trimmed)
+    handleSend(trimmed)
     setInput("")
   }
 
-  if (!conversation) {
+  if (!manager) {
     return (
       <div className="flex flex-1 flex-col bg-muted/30">
         <EmptyState />
@@ -140,20 +127,18 @@ export function MessageThread({
   }
 
   const groups = groupByDay(messages)
-  const color = colorFor(conversation.name)
+  const color = colorFor(manager.name)
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-background">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3.5">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="mr-1 shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
-          >
-            <ChevronLeft size={20} />
-          </button>
-        )}
+        <button
+          onClick={() => window.history.back()}
+          className="mr-1 shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+        >
+          <ChevronLeft size={20} />
+        </button>
 
         {/* Avatar */}
         <div className="relative shrink-0">
@@ -161,7 +146,7 @@ export function MessageThread({
             className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
             style={{ backgroundColor: color }}
           >
-            {getInitials(conversation.name)}
+            {getInitials(manager.name)}
           </div>
 
           <span className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500" />
@@ -169,7 +154,7 @@ export function MessageThread({
 
         <div className="min-w-0 flex-1">
           <p className="text-sm leading-tight font-semibold text-foreground">
-            {conversation.name}
+            {manager.name}
           </p>
           <p className="text-xs leading-tight text-green-600 dark:text-green-400">
             Online
@@ -198,7 +183,7 @@ export function MessageThread({
             {/* Messages in this day */}
             <div className="space-y-2">
               {msgs.map((msg, i) => {
-                const isMine = !!currentUserId && msg.senderId === currentUserId
+                const isMine = !!user?.userId && msg.senderId === user?.userId
                 // const isFirstInRun =
                 //   i === 0 || msgs[i - 1].senderId !== msg.senderId
                 const isLastInRun =
@@ -213,7 +198,7 @@ export function MessageThread({
                     )}
                   >
                     {/* Avatar for group chats — only on last in run */}
-                    {/* {conversation.type === "group" && !isMine && (
+                    {/* {manager.type === "group" && !isMine && (
                       <div className="shrink-0 w-7">
                         {isLastInRun && (
                           <div
@@ -233,7 +218,7 @@ export function MessageThread({
                       )}
                     >
                       {/* Sender name in group (first in run only) */}
-                      {/* {conversation.type === "group" && !isMine && isFirstInRun && (
+                      {/* {manager.type === "group" && !isMine && isFirstInRun && (
                         <span className="mb-0.5 ml-1 text-[11px] font-semibold text-gray-500">
                           {msg.senderName}
                         </span>
