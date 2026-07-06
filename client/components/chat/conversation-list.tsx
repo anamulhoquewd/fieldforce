@@ -1,5 +1,6 @@
 "use client"
 
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { IConversation } from "@/interfaces"
 import { cn } from "@/lib/utils"
 import { PenSquare, Search } from "lucide-react"
@@ -96,7 +97,7 @@ export function ConversationList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <ScrollArea className="h-screen min-h-0 flex-1">
         {filtered.length === 0 && (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">
             No conversations found.
@@ -159,7 +160,7 @@ export function ConversationList({
             </button>
           )
         })}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

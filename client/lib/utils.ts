@@ -8,9 +8,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Function to copy the access key to clipboard
-export const copyToClipboard = (text: string) => {
-  navigator.clipboard.writeText(text)
-  toast.success("Copied!")
+export const copyToClipboard = ({
+  value,
+  message,
+}: {
+  value: string
+  message: string
+}) => {
+  navigator.clipboard.writeText(value)
+  toast.success(message)
 }
 
 // Function to format the price in BDT currency

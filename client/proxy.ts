@@ -2,7 +2,14 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 // Routes that require the user to be logged in.
-const PROTECTED_ROUTES = ["/dashboard", "/my-tasks", "/team", "/map", "/chat"]
+const PROTECTED_ROUTES = [
+  "/dashboard",
+  "/tasks",
+  "/team",
+  "/maps",
+  "/chats",
+  "/profile",
+]
 
 // Routes only for logged-out users (redirect away if already logged in).
 const AUTH_ROUTES = ["/auth/signin", "/auth/signup"]
@@ -40,10 +47,11 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/my-tasks/:path*",
+    "/tasks/:path*",
     "/team/:path*",
-    "/map/:path*",
-    "/chat/:path*",
+    "/maps/:path*",
+    "/chats/:path*",
+    "/profile/:path*",
     "/auth/signin",
     "/auth/signup",
   ],

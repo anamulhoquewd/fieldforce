@@ -7,6 +7,7 @@ import { ITask, TaskStatus } from "@/interfaces"
 import { ChevronRight, Clock, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSocket } from "@/context/socketContext"
+import { copyToClipboard } from "@/lib/utils"
 
 function getInitials(name?: string) {
   if (!name) return "?"
@@ -146,7 +147,7 @@ export default function WorkerTasksPage() {
       </div>
 
       {/* Task list */}
-      <div className="max-w-2xl px-4 py-4 pb-20 md:px-8 md:py-6">
+      <div className="px-4 py-4 pb-20 md:px-8 md:py-6">
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -158,12 +159,12 @@ export default function WorkerTasksPage() {
             No tasks assigned to you.
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 space-y-3 sm:grid-cols-2">
             {tasks.map((task) => (
               <button
                 key={task.id}
                 onClick={() => setSelectedTask(task)}
-                className="block w-full text-left"
+                className="text-left"
               >
                 <div className="rounded-lg border border-border bg-card p-4 transition-shadow hover:shadow-md">
                   <div className="flex items-start gap-3">
@@ -178,7 +179,15 @@ export default function WorkerTasksPage() {
                         >
                           {statusLabel[task.status]}
                         </span>
-                        <span className="ml-auto text-xs text-gray-400">
+                        <span
+                          className="ml-auto text-xs text-gray-400"
+                          onClick={() => {
+                            copyToClipboard({
+                              value: task.id,
+                              message: "Task ID copied to clipboard!",
+                            })
+                          }}
+                        >
                           #{task.id.slice(0, 6).toUpperCase()}
                         </span>
                       </div>

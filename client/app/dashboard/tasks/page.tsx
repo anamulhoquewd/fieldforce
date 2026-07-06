@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { isTaskOverdue } from "@/components/worker/worker-dashboard"
 import useTasks from "@/hooks/dashboard/tasks/useTasks"
 import { ITask } from "@/interfaces"
 import { MapPin, MoreVertical, Search } from "lucide-react"
@@ -66,7 +67,7 @@ const statusConfig = {
   pending: { dot: "bg-yellow-400", label: "Pending" },
   in_progress: { dot: "bg-blue-500", label: "In Progress" },
   completed: { dot: "bg-green-500", label: "Completed" },
-  cancelled: { dot: "bg-gray-400", label: "Cancelled" },
+  overdue: { dot: "bg-red-500", label: "Overdue" },
 } as const
 
 // ─── component ──────────────────────────────────────────────────────────────
@@ -76,7 +77,7 @@ export default function TasksPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<ITask | null>(null)
   const [filterStatus, setFilterStatus] = useState<
-    "all" | "pending" | "in_progress" | "completed"
+    "all" | "pending" | "in_progress" | "completed" | "overdue"
   >("all")
   const [searchQuery, setSearchQuery] = useState("")
 
@@ -91,7 +92,11 @@ export default function TasksPage() {
   }
 
   const filteredTasks = tasks
-    .filter((t) => filterStatus === "all" || t.status === filterStatus)
+    .filter((t) => {
+      if (filterStatus === "all") return true
+      if (filterStatus === "overdue") return isTaskOverdue(t)
+      return t.status === filterStatus
+    })
     .filter(
       (t) =>
         !searchQuery ||
@@ -103,6 +108,7 @@ export default function TasksPage() {
     pending: tasks.filter((t) => t.status === "pending").length,
     in_progress: tasks.filter((t) => t.status === "in_progress").length,
     completed: tasks.filter((t) => t.status === "completed").length,
+    overdue: tasks.filter((t) => isTaskOverdue(t)).length,
   }
 
   return (
@@ -153,6 +159,7 @@ export default function TasksPage() {
               { key: "pending", label: "Pending" },
               { key: "in_progress", label: "In Progress" },
               { key: "completed", label: "Completed" },
+              { key: "overdue", label: "Overdue" },
             ] as const
           ).map(({ key, label }) => (
             <button
@@ -198,7 +205,12 @@ export default function TasksPage() {
                   const { text: deadlineText, overdue } = formatDeadline(
                     task.deadline
                   )
-                  const sc = statusConfig[task.status] ?? statusConfig.cancelled
+                  const sc = statusConfig[
+                    task.status as keyof typeof statusConfig
+                  ] ?? {
+                    dot: "bg-gray-400",
+                    label: task.status || "Unknown",
+                  }
                   const workerName = task.assignedWorker?.name
 
                   return (

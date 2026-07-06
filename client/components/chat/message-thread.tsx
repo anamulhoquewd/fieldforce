@@ -1,12 +1,53 @@
 "use client"
 
-import useWorkerChat from "@/hooks/chat/useWorkerChat"
-import { IChatMessage } from "@/interfaces"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@/components/ui/input-group"
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageFooter,
+  MessageGroup,
+  MessageHeader,
+} from "@/components/ui/message"
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller"
+import { IChatMessage, IConversation } from "@/interfaces"
 import { cn } from "@/lib/utils"
-import { ArrowUp, ChevronLeft, Paperclip, Phone, Users } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+import {
+  ArrowUpIcon,
+  MessageCircleDashedIcon,
+  RotateCwIcon,
+  Users,
+} from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 
 const PALETTE = [
   "#f97316",
@@ -54,7 +95,6 @@ export function dateSeparatorLabel(iso: string): string {
   })
 }
 
-// Group messages into runs per calendar day
 function groupByDay(
   messages: IChatMessage[]
 ): { label: string; msgs: IChatMessage[] }[] {
@@ -72,221 +112,243 @@ function groupByDay(
   return groups
 }
 
-// ─── Status icon ─────────────────────────────────────────────────────────────
+interface MessageThreadProps {
+  conversation?: IConversation | null
+  messages?: IChatMessage[]
+  onSend?: (content: string) => void
+  currentUserId?: string
+  title?: string
+  description?: string
+  placeholder?: string
+  emptyTitle?: string
+  emptyDescription?: string
+  className?: string
+  onReset?: () => void
+}
 
-// function StatusIcon({ status }: { status: IChatMessage["status"] }) {
-//   if (status === "sent") return <Check size={12} className="text-blue-200" />
-//   if (status === "delivered")
-//     return <CheckCheck size={12} className="text-blue-200" />
-//   return <CheckCheck size={12} className="text-white" />
-// }
-
-// ─── Placeholder when no manager selected ────────────────────────────────
-
-function EmptyState() {
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
         <Users size={24} className="text-muted-foreground" />
       </div>
-      <p className="text-sm font-medium text-foreground">Select a manager</p>
-      <p className="text-xs text-muted-foreground">
-        Choose a contact from the list to start messaging.
-      </p>
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   )
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export function MessageThread() {
-  const { user, manager, messages, handleSend } = useWorkerChat()
-
-  const [input, setInput] = useState("")
-  const bottomRef = useRef<HTMLDivElement>(null)
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = input.trim()
-    if (!trimmed) return
-    handleSend(trimmed)
-    setInput("")
-  }
-
-  if (!manager) {
-    return (
-      <div className="flex flex-1 flex-col bg-muted/30">
-        <EmptyState />
-      </div>
-    )
-  }
-
-  const groups = groupByDay(messages)
-  const color = colorFor(manager.name)
+function MessageBubble({
+  message,
+  conversation,
+  currentUserId,
+}: {
+  message: IChatMessage
+  conversation: IConversation | null
+  currentUserId?: string
+}) {
+  const isMine = message.senderId === currentUserId
+  const bubbleClassName = isMine
+    ? "bg-primary text-primary-foreground"
+    : "bg-muted text-foreground"
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-background">
-      {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3.5">
-        <button
-          onClick={() => window.history.back()}
-          className="mr-1 shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
-        >
-          <ChevronLeft size={20} />
-        </button>
-
-        {/* Avatar */}
-        <div className="relative shrink-0">
+    <MessageScrollerItem>
+      <Message align={isMine ? "end" : "start"}>
+        {!isMine && (
+          <MessageAvatar className="h-8 w-8 text-[11px]">
+            {getInitials(conversation?.name ?? "Conversation")}
+          </MessageAvatar>
+        )}
+        <MessageContent className={cn("max-w-[80%]", isMine && "items-end")}>
+          {!isMine && (
+            <MessageHeader className="px-0 text-[11px] tracking-wide uppercase">
+              {conversation?.name ?? "Conversation"}
+            </MessageHeader>
+          )}
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
-            style={{ backgroundColor: color }}
+            className={cn(
+              "rounded-2xl px-3 py-2 text-sm shadow-sm",
+              bubbleClassName
+            )}
           >
-            {getInitials(manager.name)}
+            {message.content}
           </div>
+          <MessageFooter
+            className={cn("px-0 text-[11px]", isMine && "justify-end")}
+          >
+            {formatMsgTime(message.createdAt)}
+          </MessageFooter>
+        </MessageContent>
+      </Message>
+    </MessageScrollerItem>
+  )
+}
 
-          <span className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500" />
-        </div>
+export function MessageThread({
+  conversation = null,
+  messages = [],
+  onSend,
+  currentUserId,
+  title,
+  description,
+  placeholder = "Type a message",
+  emptyTitle = "Select a contact",
+  emptyDescription = "Choose a conversation to begin messaging.",
+  onReset,
+}: MessageThreadProps) {
+  const [draft, setDraft] = useState("")
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const groups = useMemo(() => groupByDay(messages), [messages])
 
-        <div className="min-w-0 flex-1">
-          <p className="text-sm leading-tight font-semibold text-foreground">
-            {manager.name}
-          </p>
-          <p className="text-xs leading-tight text-green-600 dark:text-green-400">
-            Online
-          </p>
-        </div>
+  useEffect(() => {
+    if (!conversation || messages.length === 0) return
 
-        <div className="flex items-center gap-1">
-          <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <Phone size={17} />
-          </button>
-        </div>
-      </div>
+    const viewport = viewportRef.current
+    if (!viewport) return
 
-      <div className="flex-1 space-y-1 overflow-y-auto px-5 py-4">
-        {groups.map(({ label, msgs }) => (
-          <div key={label}>
-            {/* Date separator */}
-            <div className="flex items-center gap-3 py-3">
-              <div className="flex-1 border-t border-border" />
-              <span className="text-xs text-muted-foreground lowercase">
-                {label}
-              </span>
-              <div className="flex-1 border-t border-border" />
+    const frame = window.requestAnimationFrame(() => {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [conversation, messages])
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmed = draft.trim()
+    if (!trimmed || !onSend || !conversation) return
+    onSend(trimmed)
+    setDraft("")
+  }
+
+  return (
+    <MessageScrollerProvider autoScroll>
+      <Card className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-0 overflow-hidden">
+        <CardHeader className="shrink-0 gap-1 border-b">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+              style={{
+                backgroundColor: colorFor(
+                  conversation?.name ?? title ?? "Conversation"
+                ),
+              }}
+            >
+              {getInitials(conversation?.name ?? title ?? "Conversation")}
             </div>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="truncate">
+                {conversation?.name ?? title ?? "Messages"}
+              </CardTitle>
+              <CardDescription className="truncate">
+                {conversation
+                  ? (description ?? "Chat in real time")
+                  : (description ?? "Select a contact to start messaging")}
+              </CardDescription>
+            </div>
+          </div>
+          {onReset ? (
+            <CardAction>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Reset stream"
+                onClick={onReset}
+              >
+                <RotateCwIcon />
+              </Button>
+            </CardAction>
+          ) : null}
+        </CardHeader>
 
-            {/* Messages in this day */}
-            <div className="space-y-2">
-              {msgs.map((msg, i) => {
-                const isMine = !!user?.userId && msg.senderId === user?.userId
-                // const isFirstInRun =
-                //   i === 0 || msgs[i - 1].senderId !== msg.senderId
-                const isLastInRun =
-                  i === msgs.length - 1 || msgs[i + 1].senderId !== msg.senderId
-
-                return (
-                  <div
-                    key={msg.id}
-                    className={cn(
-                      "flex items-end gap-2",
-                      isMine ? "flex-row-reverse" : "flex-row"
-                    )}
-                  >
-                    {/* Avatar for group chats — only on last in run */}
-                    {/* {manager.type === "group" && !isMine && (
-                      <div className="shrink-0 w-7">
-                        {isLastInRun && (
-                          <div
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                            style={{ backgroundColor: colorFor(msg.senderName) }}
-                          >
-                            {getInitials(msg.senderName)}
-                          </div>
-                        )}
-                      </div>
-                    )} */}
-
-                    <div
-                      className={cn(
-                        "flex flex-col",
-                        isMine ? "items-end" : "items-start"
-                      )}
-                    >
-                      {/* Sender name in group (first in run only) */}
-                      {/* {manager.type === "group" && !isMine && isFirstInRun && (
-                        <span className="mb-0.5 ml-1 text-[11px] font-semibold text-gray-500">
-                          {msg.senderName}
+        <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
+          {!conversation ? (
+            <EmptyState title={emptyTitle} description={emptyDescription} />
+          ) : messages.length === 0 ? (
+            <Empty className="h-full">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <MessageCircleDashedIcon />
+                </EmptyMedia>
+                <EmptyTitle>Ready to chat</EmptyTitle>
+                <EmptyDescription>
+                  Start the conversation with a message.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <MessageScroller className="h-full">
+              <MessageScrollerViewport ref={viewportRef}>
+                <MessageScrollerContent className="p-4">
+                  {groups.map((group) => (
+                    <MessageGroup key={group.label} className="gap-3">
+                      <div className="flex justify-center">
+                        <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                          {group.label}
                         </span>
-                      )} */}
-
-                      {/* Bubble */}
-                      <div
-                        className={cn(
-                          "max-w-xs px-3.5 py-2 text-sm leading-relaxed",
-                          isMine
-                            ? "rounded-2xl rounded-br-sm bg-primary text-primary-foreground"
-                            : "rounded-2xl rounded-bl-sm bg-muted text-foreground"
-                        )}
-                        style={{ maxWidth: "min(320px, 65vw)" }}
-                      >
-                        {msg.content}
                       </div>
+                      {group.msgs.map((message) => (
+                        <MessageBubble
+                          key={message.id}
+                          message={message}
+                          conversation={conversation}
+                          currentUserId={currentUserId}
+                        />
+                      ))}
+                    </MessageGroup>
+                  ))}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          )}
+        </CardContent>
 
-                      {/* Timestamp + status */}
-                      {isLastInRun && (
-                        <div
-                          className={cn(
-                            "mt-0.5 flex items-center gap-1",
-                            isMine ? "flex-row-reverse" : "flex-row"
-                          )}
-                        >
-                          <span className="text-[11px] text-muted-foreground">
-                            {formatMsgTime(msg.createdAt)}
-                          </span>
-                          {/* {isMine && <StatusIcon status={msg.status} />} */}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <form
-        onSubmit={handleSubmit}
-        className="flex shrink-0 items-center gap-2 border-t border-border bg-background px-4 py-3"
-      >
-        <button
-          type="button"
-          className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Paperclip size={18} />
-        </button>
-        <input
-          type="text"
-          placeholder="Type a message..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="flex-1 rounded-xl border border-border bg-muted/50 px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim()}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
-        >
-          <ArrowUp size={18} />
-        </button>
-      </form>
-    </div>
+        <CardFooter className="shrink-0 flex-col gap-2 border-t">
+          <form onSubmit={handleSubmit} className="w-full">
+            <InputGroup className="min-h-14">
+              <InputGroupTextarea
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault()
+                    const syntheticEvent =
+                      event as unknown as FormEvent<HTMLFormElement>
+                    handleSubmit(syntheticEvent)
+                  }
+                }}
+                placeholder={placeholder}
+                className="min-h-12 resize-none py-3"
+                rows={1}
+              />
+              <InputGroupAddon align="block-end" className="pt-1">
+                <InputGroupButton
+                  type="submit"
+                  variant="default"
+                  size="icon-sm"
+                  disabled={!draft.trim() || !conversation}
+                  className="ml-auto"
+                >
+                  <ArrowUpIcon />
+                  <span className="sr-only">Send</span>
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Press Enter to send, Shift + Enter for a new line.
+            </p>
+          </form>
+        </CardFooter>
+      </Card>
+    </MessageScrollerProvider>
   )
 }

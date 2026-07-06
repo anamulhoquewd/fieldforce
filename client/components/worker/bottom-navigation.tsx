@@ -8,8 +8,9 @@ export function BottomNavigation() {
   const pathname = usePathname();
 
   const navItems = [
-    { href: "/", label: "My Tasks", icon: ClipboardList },
-    { href: "/chats", label: "Chat", icon: MessageSquare, badge: 1 },
+    { href: "/", label: "Dashboard", icon: ClipboardList },
+    { href: "/tasks", label: "My Tasks", icon: ClipboardList },
+    { href: "/chats", label: "Chats", icon: MessageSquare, badge: 1 },
     { href: "/profile", label: "Profile", icon: User },
   ]
 
