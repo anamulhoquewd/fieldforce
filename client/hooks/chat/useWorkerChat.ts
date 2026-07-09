@@ -24,7 +24,7 @@ function useWorkerChat() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get("/memberships/manager")
+        const res = await api.get("/memberships?type=manager")
         if (res.status === 200 && res.data.success) {
           setManager(res.data.data[0])
         }

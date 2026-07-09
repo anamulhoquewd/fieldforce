@@ -9,7 +9,7 @@ const useWorkers = () => {
 
   const load = async () => {
     try {
-      const response = await api.get("/memberships/workers")
+      const response = await api.get("/memberships?type=worker")
       if (response.status === 200 && response.data.success) {
         setWorkers(response.data.data)
       }

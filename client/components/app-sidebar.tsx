@@ -134,21 +134,45 @@ const data: {
   projects: [],
 }
 
+const workerProjects: Project[] = [
+  {
+    name: "Dashboard",
+    url: "/",
+    icon: <LayoutDashboard />,
+  },
+  {
+    name: "My Tasks",
+    url: "/tasks",
+    icon: <Logs />,
+  },
+  {
+    name: "Chats",
+    url: "/chats",
+    icon: <MessageSquare />,
+  },
+]
+
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   main?: typeof data.navMain
   projects?: typeof data.projects
 }
 
 export function AppSidebar({ main, projects, ...props }: AppSidebarProps) {
-  const { user } = useUser()
+  const { user, loading } = useUser()
+  const isWorker = user?.role === "worker"
+  const isManager = user?.role === "manager"
+  const shouldShowRoleNav = Boolean(user) || !loading
   const modifiedData = {
     ...data,
-    navMain: main || data.navMain,
-    projects: projects || data.projects,
+    navMain: main ?? (isManager ? data.navMain : []),
+    projects:
+      projects ??
+      (isWorker ? workerProjects : shouldShowRoleNav ? data.projects : []),
     user: {
       ...data.user,
       name: user?.name || data.user.name,
       email: user?.email || data.user.email,
+      role: user?.role,
     },
   }
   return (

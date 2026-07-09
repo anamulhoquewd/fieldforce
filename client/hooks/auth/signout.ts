@@ -1,4 +1,5 @@
 import api from "@/lib/api"
+import { clearRoleCookie } from "@/lib/auth-role"
 import { handleAxiosError } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -17,6 +18,7 @@ function useSignout() {
         throw new Error(response.data.error.message)
       }
 
+      clearRoleCookie()
       router.push("/auth/signin")
     } catch (error: any) {
       handleAxiosError(error)

@@ -24,6 +24,8 @@ import {
   LogOutIcon,
   SparklesIcon,
 } from "lucide-react"
+import { getProfilePath, type UserRole } from "@/lib/auth-role"
+import { useRouter } from "next/navigation"
 
 export function NavUser({
   user,
@@ -31,10 +33,12 @@ export function NavUser({
   user: {
     name: string
     email: string
+    role?: UserRole
     // avatar: string
   }
 }) {
   const isMobile = useIsMobile()
+  const router = useRouter()
   if (!user) return null
   return (
     <SidebarMenu>
@@ -87,7 +91,13 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  router.push(
+                    user.role ? getProfilePath(user.role) : "/profile"
+                  )
+                }
+              >
                 <BadgeCheckIcon />
                 Account
               </DropdownMenuItem>

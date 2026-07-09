@@ -25,7 +25,7 @@ function useMapData() {
       setLoading(true)
       try {
         const [wRes, lRes, tRes] = await Promise.allSettled([
-          api.get("/memberships/workers"),
+          api.get("/memberships?type=worker"),
           api.get("/locations"),
           api.get("/tasks/list"),
         ])

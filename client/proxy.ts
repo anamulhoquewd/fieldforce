@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
+import { ROLE_COOKIE_NAME, getRoleHome, type UserRole } from "@/lib/auth-role"
 
-// Routes that require the user to be logged in.
 const PROTECTED_ROUTES = [
+  "/",
   "/dashboard",
   "/tasks",
   "/team",
@@ -11,22 +12,26 @@ const PROTECTED_ROUTES = [
   "/profile",
 ]
 
-// Routes only for logged-out users (redirect away if already logged in).
 const AUTH_ROUTES = ["/auth/signin", "/auth/signup"]
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // The session cookie set by your backend (httpOnly, readable here server-side).
   const sessionCookie = request.cookies.get("session")
+  const roleCookie = request.cookies.get(ROLE_COOKIE_NAME)?.value
   const isLoggedIn = Boolean(sessionCookie)
+  const role =
+    roleCookie === "manager" || roleCookie === "worker"
+      ? (roleCookie as UserRole)
+      : null
 
-  const isProtected = PROTECTED_ROUTES.some((route) =>
-    pathname.startsWith(route)
-  )
+  const isProtected =
+    pathname === "/" ||
+    PROTECTED_ROUTES.some(
+      (route) => route !== "/" && pathname.startsWith(route)
+    )
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route))
 
-  // 1. Not logged in + trying to reach a protected page → send to login.
   if (isProtected && !isLoggedIn) {
     const loginUrl = new URL("/auth/signin", request.url)
     loginUrl.searchParams.set("from", pathname)
@@ -34,18 +39,36 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // 2. Already logged in + trying to reach login/signup → send to dashboard.
   if (isAuthRoute && isLoggedIn) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return NextResponse.redirect(
+      new URL(role ? getRoleHome(role) : "/dashboard", request.url)
+    )
   }
 
-  // 3. Otherwise, let the request through.
+  if (isLoggedIn && role) {
+    if (role === "manager" && pathname === "/") {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+
+    if (role === "manager" && pathname.startsWith("/profile")) {
+      return NextResponse.redirect(new URL("/dashboard/profile", request.url))
+    }
+
+    if (role === "worker" && pathname.startsWith("/dashboard/profile")) {
+      return NextResponse.redirect(new URL("/profile", request.url))
+    }
+
+    if (role === "worker" && pathname.startsWith("/dashboard")) {
+      return NextResponse.redirect(new URL("/", request.url))
+    }
+  }
+
   return NextResponse.next()
 }
 
-// Only run proxy on these paths (skips static files, images, api, etc.)
 export const config = {
   matcher: [
+    "/",
     "/dashboard/:path*",
     "/tasks/:path*",
     "/team/:path*",

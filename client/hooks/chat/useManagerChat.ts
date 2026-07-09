@@ -25,7 +25,7 @@ function useManagerChat() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get("/memberships/workers")
+        const res = await api.get("/memberships?type=worker")
         if (res.status === 200 && res.data.success) {
           setConversations(res.data.data)
         }

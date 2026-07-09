@@ -1,4 +1,5 @@
 import api from "@/lib/api"
+import { getRoleHome, setRoleCookie } from "@/lib/auth-role"
 import { handleAxiosError } from "@/lib/utils"
 import { signupSchema, SignupValues } from "@/validations/zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -31,7 +32,8 @@ function useSignup() {
         password: "",
       })
 
-      router.push("/dashboard")
+      setRoleCookie("manager")
+      router.push(getRoleHome("manager"))
     } catch (error: any) {
       handleAxiosError(error)
 

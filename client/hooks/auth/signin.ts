@@ -1,4 +1,5 @@
 import api from "@/lib/api"
+import { getRoleHome, setRoleCookie, type UserRole } from "@/lib/auth-role"
 import { handleAxiosError } from "@/lib/utils"
 import { SigninValues, singinSchema } from "@/validations/zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -29,7 +30,9 @@ function useSignin() {
         password: "",
       })
 
-      router.push("/dashboard")
+      const role = response.data.data.role as UserRole
+      setRoleCookie(role)
+      router.push(getRoleHome(role))
     } catch (error: any) {
       handleAxiosError(error)
 

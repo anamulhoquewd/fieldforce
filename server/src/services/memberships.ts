@@ -7,7 +7,7 @@ const getMembershipService = async ({
   role,
 }: {
   organizationId: string;
-  role: "worker" | "manager";
+  role: "worker" | "manager" | "all";
 }) => {
   if (!organizationId)
     return {
@@ -29,7 +29,7 @@ const getMembershipService = async ({
       .where(
         and(
           eq(memberships.organizationId, organizationId),
-          eq(memberships.role, role),
+          role === "all" ? undefined : eq(memberships.role, role),
         ),
       );
 

@@ -14,7 +14,8 @@ import {
   User,
   X,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useState } from "react"
 import { toast } from "sonner"
 
 interface ManagerTaskPanelProps {
@@ -52,18 +53,29 @@ export function ManagerTaskPanel({
   onClose,
   onTaskUpdated,
 }: ManagerTaskPanelProps) {
-  const [selectedStatus, setSelectedStatus] = useState<TaskStatus>("pending")
-  const [selectedWorker, setSelectedWorker] = useState<string>("")
+  return (
+    <ManagerTaskPanelContent
+      key={task?.id ?? "empty"}
+      task={task}
+      onClose={onClose}
+      onTaskUpdated={onTaskUpdated}
+    />
+  )
+}
+
+function ManagerTaskPanelContent({
+  task,
+  onClose,
+  onTaskUpdated,
+}: ManagerTaskPanelProps) {
+  const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(
+    task?.status ?? "pending"
+  )
+  const [selectedWorker, setSelectedWorker] = useState<string>(
+    task?.assignedTo ?? ""
+  )
   const { patchTask, saving } = usePatchTask()
   const { workers } = useWorkers()
-
-  // Sync local state when a different task is selected
-  useEffect(() => {
-    if (task) {
-      setSelectedStatus(task.status)
-      setSelectedWorker(task.assignedTo ?? "")
-    }
-  }, [task])
 
   const handleSave = async () => {
     if (!task) return
@@ -235,14 +247,14 @@ export function ManagerTaskPanel({
                   <p className="text-sm text-foreground">
                     {task.latitude.toFixed(5)}, {task.longitude.toFixed(5)}
                   </p>
-                  <a
+                  <Link
                     href={`https://www.google.com/maps?q=${task.latitude},${task.longitude}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-0.5 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
                   >
                     View on map <ExternalLink size={10} />
-                  </a>
+                  </Link>
                 </div>
               </div>
             )}

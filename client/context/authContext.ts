@@ -1,8 +1,14 @@
 "use client"
 
 import api from "@/lib/api"
+import {
+  clearRoleCookie,
+  getProfilePath,
+  getRoleHome,
+  setRoleCookie,
+} from "@/lib/auth-role"
 import { handleAxiosError } from "@/lib/utils"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import React, {
   createContext,
   ReactNode,
@@ -34,6 +40,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // ---- Provider: wraps the app, fetches /auth/me once ----
 export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const isAuthRoute = pathname?.startsWith("/auth")
   const [user, setUser] = useState<User | null>(null)
   const [isFetchingUser, setIsFetchingUser] = useState(true)
@@ -43,8 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.get("/auth/me")
       setUser(res.data.data)
+      setRoleCookie(res.data.data.role)
     } catch (err: any) {
       setUser(null)
+      clearRoleCookie()
       handleAxiosError(err)
     } finally {
       setIsFetchingUser(false)
@@ -71,6 +80,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthRoute])
 
+  useEffect(() => {
+    if (!user || !pathname || isAuthRoute) return
+
+    if (user.role === "manager" && pathname === "/") {
+      router.replace(getRoleHome(user.role))
+      return
+    }
+
+    if (user.role === "manager" && pathname.startsWith("/profile")) {
+      router.replace(getProfilePath(user.role))
+      return
+    }
+
+    if (user.role === "worker" && pathname.startsWith("/dashboard/profile")) {
+      router.replace(getProfilePath(user.role))
+      return
+    }
+
+    if (user.role === "worker" && pathname.startsWith("/dashboard")) {
+      router.replace(getRoleHome(user.role))
+    }
+  }, [isAuthRoute, pathname, router, user])
+
   const refresh = async () => {
     setIsFetchingUser(true)
     await fetchUser()
@@ -85,6 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.error(err?.message)
     }
     setUser(null)
+    clearRoleCookie()
+    router.push("/auth/signin")
   }
 
   return React.createElement(

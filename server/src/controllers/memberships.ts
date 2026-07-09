@@ -2,12 +2,13 @@ import { badRequestError, serverError } from "@/errors/index.js";
 import { memberships } from "@/services/index.js";
 import type { Context } from "hono";
 
-const getWorkerController = async (c: Context) => {
+const getMembershipsController = async (c: Context) => {
+  const type = c.req.query("type") as "all" | "manager" | "worker";
   const user = c.get("user");
 
   const response = await memberships.getMembershipService({
     organizationId: user.organizationId,
-    role: "worker",
+    role: type,
   });
 
   if (response.error) {
@@ -21,23 +22,5 @@ const getWorkerController = async (c: Context) => {
   return c.json(response, 200);
 };
 
-const getManagerController = async (c: Context) => {
-  const user = c.get("user");
+export { getMembershipsController };
 
-  const response = await memberships.getMembershipService({
-    organizationId: user.organizationId,
-    role: "manager",
-  });
-
-  if (response.error) {
-    return badRequestError(c, response.error);
-  }
-
-  if (response.serverError) {
-    return serverError(c, response.serverError);
-  }
-
-  return c.json(response, 200);
-};
-
-export { getWorkerController, getManagerController };

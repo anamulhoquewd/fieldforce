@@ -1,6 +1,7 @@
 import { useUser } from "@/context/authContext"
 import { IInvitation } from "@/interfaces"
 import api from "@/lib/api"
+import { getRoleHome, setRoleCookie } from "@/lib/auth-role"
 import { handleAxiosError } from "@/lib/utils"
 import {
   acceptInvitationSchema,
@@ -9,7 +10,7 @@ import {
   InviteMemberValues,
 } from "@/validations/zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useRouter } from "next/router"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 import { Resolver, useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -77,7 +78,8 @@ const useInvitation = (token: string | null) => {
       toast.success("Welcome to FieldForce!")
 
       const role = response.data.data.role as "manager" | "worker"
-      router.push(role === "manager" ? "/dashboard" : "/")
+      setRoleCookie(role)
+      router.push(getRoleHome(role))
     } catch (error: any) {
       handleAxiosError(error)
 
