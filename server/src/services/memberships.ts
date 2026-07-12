@@ -19,10 +19,15 @@ const getMembershipService = async ({
   try {
     const members = await db
       .select({
-        id: users.id,
+        id: memberships.id,
+        userId: users.id,
+        organizationId: memberships.organizationId,
         name: users.name,
         email: users.email,
         role: memberships.role,
+        joinedAt: memberships.joinedAt,
+        createdAt: memberships.createdAt,
+        updatedAt: memberships.updatedAt,
       })
       .from(memberships)
       .innerJoin(users, eq(memberships.userId, users.id))
