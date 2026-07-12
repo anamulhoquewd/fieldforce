@@ -59,6 +59,15 @@ const createInvitationService = async (body: TInvitation) => {
       console.error("Failed to send invitation email:", mailError?.message);
     }
 
+    // const mailOptions = {
+    //   from: process.env.EMAIL_USER,
+    //   to: email,
+    //   subject: "Your Account Details",
+    //   text: `Hello ${data.name},\n\nClick the link below to reset your password:\n\n${resetUrl}\n\nIf you didn't request this, please ignore this email. This token will expire in 30 minutes.\n\nBest regards,\n${data.name}`,
+    // };
+
+    // await transporter.sendMail(mailOptions);
+
     return {
       success: true,
       message: emailSent

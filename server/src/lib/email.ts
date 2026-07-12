@@ -72,7 +72,7 @@ export const sendInvitationEmail = async ({
   </div>`;
 
   await transporter.sendMail({
-    from: `"FieldForce" <${process.env.EMAIL_USER}>`,
+    from: process.env.EMAIL_USER,
     to,
     subject,
     text,
