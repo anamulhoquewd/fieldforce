@@ -8,6 +8,7 @@ import { db } from "./db/index.js";
 import { messages } from "./db/schema.js";
 import { notFoundError } from "./errors/index.js";
 import { getSession } from "./lib/session.js";
+import { messages as messageServices } from "./services/index.js";
 import authRoute from "./routes/auth.js";
 import invitationRoute from "./routes/invitations.js";
 import locationRoute from "./routes/locations.js";
@@ -177,4 +178,37 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("❌ A client disconnected:", socket.id);
   });
+
+  socket.on(
+    "chat:read",
+    async (data: { messageId: string }) => {
+      if (!data.messageId) return;
+      try {
+        const result = await messageServices.markMessageReadService({
+          messageId: data.messageId,
+          organizationId: user.organizationId,
+        });
+
+        if (result.success && result.data) {
+          io.to(`user:${user.userId}`).emit("message-read", result.data);
+          io.to(`user:${result.data.senderId}`).emit(
+            "message-read",
+            result.data,
+          );
+        }
+      } catch (error) {
+        console.log("Error on chat:read:", error);
+      }
+    },
+  );
+
+  socket.on(
+    "chat:typing",
+    (data: { receiverId: string }) => {
+      if (!data.receiverId) return;
+      io.to(`user:${data.receiverId}`).emit("chat:typing", {
+        senderId: user.userId,
+      });
+    },
+  );
 });

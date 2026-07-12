@@ -2,7 +2,7 @@
 
 A multi-tenant SaaS application for managing field teams. Managers can assign tasks to field workers, track their live GPS locations on an interactive map, and communicate with them in real time via chat.
 
-> Work in progress — building in public over 90 days.
+> MVP complete — managers assign tasks, track workers live on a map, and chat in real time. Future ideas live in `LATER.md`.
 
 ---
 
@@ -46,7 +46,7 @@ A multi-tenant SaaS application for managing field teams. Managers can assign ta
 | Toast | Sonner | — | Toast notifications |
 | Real-time | Socket.IO | — | Live location + real-time DM chat |
 | File Storage | Cloudflare R2 | — | User uploads (planned) |
-| Email | Gmail SMTP | — | Invitations (planned) |
+| Email | Nodemailer (Gmail SMTP) | — | Invitation emails |
 
 ---
 
@@ -65,10 +65,9 @@ fieldforce/
 │   │   │   ├── tasks/page.tsx                # [DONE] Task table + filter + search + create + edit panel
 │   │   │   ├── maps/page.tsx                 # [DONE] Live map — workers + tasks + useSocket()
 │   │   │   ├── chats/page.tsx                # [DONE] Manager chat — ConversationList + MessageThread + useSocket()
-│   │   │   └── team/page.tsx                 # [STUB] Team management page
+│   │   │   └── team/page.tsx                 # [DONE] Team management — members table + invite + pending list
 │   │   ├── chats/page.tsx                    # [DONE] Worker chat — MessageThread + useSocket() (mobile)
-│   │   ├── chat-list/page.tsx                # [LEGACY-MOCK] Old worker chat list (hardcoded data, unused)
-│   │   ├── profile/page.tsx                  # [DONE] Worker profile + settings
+│   │   ├── profile/page.tsx                  # [DONE] Worker profile (settings UI only — see LATER.md)
 │   │   ├── tasks/[id]/page.tsx               # [DONE] Worker task detail page
 │   │   ├── globals.css                       # [DONE] Tailwind v4 + theme tokens
 │   │   ├── layout.tsx                        # [DONE] Root layout (Providers + GoogleMapsScript)
@@ -125,7 +124,8 @@ fieldforce/
 │   │   ├── auth/
 │   │   │   ├── signup.ts                     # [DONE] useSignup()
 │   │   │   ├── signin.ts                     # [DONE] useSignin()
-│   │   │   └── signout.ts                    # [DONE] useSignout()
+│   │   │   ├── signout.ts                    # [DONE] useSignout()
+│   │   │   └── acceptInvitation.ts           # [DONE] useAcceptInvitation() (wires /join → /invitations/accept)
 │   │   ├── dashboard/tasks/
 │   │   │   └── useTasks.ts                   # [DONE] Fetch task list
 │   │   ├── use-mobile.ts                     # [DONE] useIsMobile() hook
@@ -397,10 +397,10 @@ Base path: `/api/v1`
 ### Invitations
 | Method | Path | Auth | Role | Status | Description |
 |---|---|---|---|---|---|
-| POST | `/invitations/register` | Cookie | manager | **DONE** | Create invite + return link |
+| POST | `/invitations/register` | Cookie | manager | **DONE** | Create invite + email link (Nodemailer) + return link |
 | GET | `/invitations/list` | Cookie | manager | **DONE** | List org invitations |
 | POST | `/invitations/accept` | None | — | **DONE** | Accept → create user + session |
-| POST | `/invitations/decline` | None | — | STUB | Decline invitation |
+| POST | `/invitations/decline` | Cookie | manager | **DONE** | Decline invitation (marks `declined`) |
 
 ### Tasks
 | Method | Path | Auth | Role | Status | Description |
@@ -440,8 +440,8 @@ Base path: `/api/v1`
 | Method | Path | Auth | Status | Description |
 |---|---|---|---|---|
 | GET | `/messages/:userId` | Cookie | **DONE** | Fetch conversation history with another user |
-| POST | `/messages` | — | STUB | Send message via REST (sending is via Socket.IO) |
-| PATCH | `/messages/:id/read` | — | STUB | Mark as read via REST |
+| POST | `/messages` | Cookie | **DONE** | Send message via REST (mirrors Socket.IO `send-message`) |
+| PATCH | `/messages/:id/read` | Cookie | **DONE** | Mark a message as read (sets `read_at`) |
 
 ---
 
@@ -471,10 +471,17 @@ Each client joins two rooms on connect:
 
 ### Client → Server (Planned)
 
-| Event | Direction | Description |
-|---|---|---|
-| `chat:read` | client → server | Mark conversation as read |
-| `chat:typing` | client → server | Typing indicator |
+| Event | Direction | Status | Description |
+|---|---|---|---|
+| `chat:read` | client → server | **DONE** | Mark a message read — server sets `read_at` (DB) and emits `message-read` to both parties |
+| `chat:typing` | client → server | **DONE** | Typing indicator — server broadcasts `chat:typing` (with `senderId`) to the peer's `user:{id}` room |
+
+### Server → Client (New)
+
+| Event | Receiver | Payload | Description |
+|---|---|---|---|
+| `message-read` | sender + reader | `IChatMessage` DB row | Emitted by `chat:read` so both sides can update read state |
+| `chat:typing` | peer | `{ senderId }` | Emitted by `chat:typing` so the peer can show a typing indicator |
 
 ---
 
@@ -491,8 +498,8 @@ DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
 REDIS_URL=rediss://user:pass@host:6380
 SESSION_SECRET=your-long-random-secret
 
-EMAIL_USER=your@gmail.com
-EMAIL_PASS=your-gmail-app-password
+EMAIL_USER=your@gmail.com          # Nodemailer sender for invitation emails
+EMAIL_PASS=your-gmail-app-password # Gmail App Password (not your login password)
 GOOGLE_MAPS_API_KEY=your-key
 
 R2_ACCESS_KEY=key
@@ -1038,27 +1045,28 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 - [x] `useTasks`, `useWorkers`, `useUpdateTaskStatus`, `useIsMobile` hooks
 - [x] TypeScript interfaces (`ITask`, `IWorker`, `TaskStatus`, etc.)
 - [x] Tailwind CSS v4 + full shadcn/ui component set
+- [x] **Team page** — members table + filter/search + create-invitation modal + pending-invitations list
+- [x] **Accept-invitation flow** — `/join` page wired to `useAcceptInvitation()` → `POST /invitations/accept` (previously a missing hook; now fixed)
+- [x] **Invitation decline** — `POST /invitations/decline` (service + controller + route)
+- [x] **Invitation emails** — Nodemailer (Gmail SMTP) sends a personalized HTML invite link on `POST /invitations/register`; delivery is best-effort so the invite + link still return if SMTP fails
+- [x] **Messages REST** — `POST /messages` (send) + `PATCH /messages/:id/read` (mark read)
+- [x] **Read receipts** — `chat:read` Socket.IO event → DB `read_at` + `message-read` broadcast
+- [x] **Typing indicator** — `chat:typing` Socket.IO event broadcast to peer
+- [x] `BottomNavigation` links to real `/chats` page (legacy `/worker/chat` removed)
+- [x] Removed legacy `chat-list/page.tsx` mock
 
-### Stub / Pending
+### Stub / Pending (MVP polish — tracked in `LATER.md`)
 
-- [ ] Invitation decline endpoint
-- [ ] Email sending for invitations
-- [ ] `changePassword`, `forgotPassword`, `resetPassword` — defined, not exposed via routes
-- [ ] Dashboard team page
-- [ ] Worker profile settings wired to API
-- [ ] `POST /messages` REST endpoint (sending is currently Socket.IO only)
-- [ ] `PATCH /messages/:id/read` — mark read via REST
-- [ ] `chat:read` and `chat:typing` Socket.IO events
-- [ ] `chat-list/page.tsx` — old mock worker chat list, still in codebase with hardcoded data; replace with real `/chats` page
-- [ ] `BottomNavigation` — still links to `/worker/chat` (non-existent); should link to `/chats`
-
-### Not Started
-
+- [ ] `changePassword`, `forgotPassword`, `resetPassword` — defined in service, not yet exposed via routes (needs persistent reset-token storage + email)
+- [ ] Worker profile settings wired to API (Availability toggle, Notifications, Vehicle are UI-only)
 - [ ] Location history from DB (current: latest position only via Redis)
 - [ ] File uploads (Cloudflare R2)
-- [ ] Email service (Gmail SMTP for invitations)
 - [ ] Dashboard analytics / notifications
-- [ ] Query / search / filter / pagination on task endpoints (see `LATER.md`)
+- [ ] Query / search / filter / pagination on task endpoints
+
+> All of the above are non-blocking for the core MVP flow (manager assigns tasks →
+> sees workers on a map → chats with them). They are catalogued with context in
+> `LATER.md`.
 
 ---
 
@@ -1071,5 +1079,5 @@ Calls `GET /memberships/workers`. Returns `IWorker[]` for assignee dropdowns.
 | 3 | Invitations + Tasks CRUD + Worker/Manager UI | Done |
 | 4 | Real-time location (Socket.IO + Google Maps live tracking) | Done |
 | 5 | Real-time chat (DMs via Socket.IO + DB persistence, history REST endpoint) | Done |
-| 6 | Dashboard analytics + notifications | Pending |
-| 7–13 | Polish, testing, deployment, extras | Pending |
+| 6 | MVP completion — invite-accept UI fix, invitation decline, message read receipts + typing | Done |
+| 7–13 | Polish, testing, deployment, extras (see `LATER.md`) | Pending |

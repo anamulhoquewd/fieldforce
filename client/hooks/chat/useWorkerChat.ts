@@ -18,8 +18,8 @@ function useWorkerChat() {
   }, [user?.userId])
 
   useEffect(() => {
-    managerIdRef.current = manager?.id
-  }, [manager?.id])
+    managerIdRef.current = manager?.userId
+  }, [manager?.userId])
 
   useEffect(() => {
     const load = async () => {
@@ -36,11 +36,11 @@ function useWorkerChat() {
   }, [])
 
   useEffect(() => {
-    if (!manager?.id) return
+    if (!manager?.userId) return
 
     const load = async () => {
       try {
-        const res = await api.get(`/messages/${manager.id}`)
+        const res = await api.get(`/messages/${manager.userId}`)
         if (res.status === 200 && res.data?.success) {
           setMessages(res.data.data)
         }
@@ -49,7 +49,7 @@ function useWorkerChat() {
       }
     }
     load()
-  }, [manager?.id])
+  }, [manager?.userId])
 
   useEffect(() => {
     if (!socket) return
@@ -70,9 +70,9 @@ function useWorkerChat() {
 
   const handleSend = useCallback(
     (content: string) => {
-      if (!manager?.id || !socket) return
+      if (!manager?.userId || !socket) return
       socket.emit("send-message", {
-        receiverId: manager.id,
+        receiverId: manager.userId,
         content,
       })
     },

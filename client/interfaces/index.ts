@@ -45,6 +45,7 @@ export interface IMembership {
 
 export interface IConversation {
   id: string
+  userId: string
   name: string
   email: string
   role: "worker" | "manager"

@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/empty"
 import {
   InputGroup,
-  InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
@@ -314,7 +313,7 @@ export function MessageThread({
 
         <CardFooter className="shrink-0 flex-col gap-2 border-t">
           <form onSubmit={handleSubmit} className="w-full">
-            <InputGroup className="min-h-14">
+            <InputGroup>
               <InputGroupTextarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -327,25 +326,22 @@ export function MessageThread({
                   }
                 }}
                 placeholder={placeholder}
-                className="min-h-12 resize-none py-3"
+                className="resize-none"
                 rows={1}
               />
-              <InputGroupAddon align="block-end" className="pt-1">
-                <InputGroupButton
-                  type="submit"
-                  variant="default"
-                  size="icon-sm"
-                  disabled={!draft.trim() || !conversation}
-                  className="ml-auto"
-                >
-                  <ArrowUpIcon />
-                  <span className="sr-only">Send</span>
-                </InputGroupButton>
-              </InputGroupAddon>
+              {/* <InputGroupAddon align="block-end" className="pt-1"> */}
+              <InputGroupButton
+                type="submit"
+                variant="default"
+                size="icon-sm"
+                disabled={!draft.trim() || !conversation}
+                className="ml-auto"
+              >
+                <ArrowUpIcon />
+                <span className="sr-only">Send</span>
+              </InputGroupButton>
+              {/* </InputGroupAddon> */}
             </InputGroup>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Press Enter to send, Shift + Enter for a new line.
-            </p>
           </form>
         </CardFooter>
       </Card>

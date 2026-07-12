@@ -1,4 +1,6 @@
 import { db } from "@/db/index.js";
+import { and, eq } from "drizzle-orm";
+import { messages } from "@/db/schema.js";
 
 const getMessagesService = async (body: {
   organizationId: string;
@@ -43,4 +45,92 @@ const getMessagesService = async (body: {
   }
 };
 
-export { getMessagesService };
+const sendMessageService = async (body: {
+  organizationId: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+}) => {
+  const { organizationId, senderId, receiverId, content } = body;
+  if (!organizationId || !senderId || !receiverId || !content.trim())
+    return {
+      error: {
+        message: "sender, receiver, and content are required",
+      },
+    };
+
+  try {
+    const [message] = await db
+      .insert(messages)
+      .values({ organizationId, senderId, receiverId, content })
+      .returning();
+
+    return {
+      success: true,
+      message: "message sent",
+      data: message,
+    };
+  } catch (error: any) {
+    console.log("Error on send message: ", error);
+    return {
+      serverError: {
+        success: false,
+        message: error.message,
+        stack: process.env.NODE_ENV === "production" ? null : error.stack,
+      },
+    };
+  }
+};
+
+const markMessageReadService = async ({
+  messageId,
+  organizationId,
+}: {
+  messageId: string;
+  organizationId: string;
+}) => {
+  if (!messageId || !organizationId)
+    return {
+      error: {
+        message: "message id and organization id are required",
+      },
+    };
+
+  try {
+    const [message] = await db
+      .update(messages)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(messages.id, messageId),
+          eq(messages.organizationId, organizationId),
+        ),
+      )
+      .returning();
+
+    if (!message) {
+      return {
+        error: {
+          message: "Message not found",
+        },
+      };
+    }
+
+    return {
+      success: true,
+      message: "message marked as read",
+      data: message,
+    };
+  } catch (error: any) {
+    console.log("Error on mark read: ", error);
+    return {
+      serverError: {
+        success: false,
+        message: error.message,
+        stack: process.env.NODE_ENV === "production" ? null : error.stack,
+      },
+    };
+  }
+};
+
+export { getMessagesService, markMessageReadService, sendMessageService };

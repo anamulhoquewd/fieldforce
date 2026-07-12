@@ -19,4 +19,8 @@ invitationRoute.post("/accept", (c) =>
   invitation.acceptInvitationController(c),
 );
 
+invitationRoute.post("/decline", authMiddileware, requiredRoles("manager"), (c) =>
+  invitation.declineInvitationController(c),
+);
+
 export default invitationRoute;

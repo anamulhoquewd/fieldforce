@@ -50,7 +50,7 @@ function useManagerChat() {
 
       setConversations((prev) =>
         prev.map((c) =>
-          c.id === otherId
+          c.userId === otherId
             ? {
                 ...c,
                 lastMessage: msg.content,
@@ -81,7 +81,7 @@ function useManagerChat() {
           setMessages(res.data.data)
           setConversations((prev) =>
             prev.map((c) =>
-              c.id === selectedId ? { ...c, unreadCount: 0 } : c
+              c.userId === selectedId ? { ...c, unreadCount: 0 } : c
             )
           )
         }
@@ -102,8 +102,7 @@ function useManagerChat() {
     [selectedId, socket]
   )
 
-  const selected =
-    conversations.find((c) => c.id === selectedId) ?? null
+  const selected = conversations.find((c) => c.userId === selectedId) ?? null
 
   return {
     user,

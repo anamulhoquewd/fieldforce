@@ -60,8 +60,28 @@ const acceptInvitationController = async (c: Context) => {
   return c.json(response, 201);
 };
 
+const declineInvitationController = async (c: Context) => {
+  const user = c.get("user");
+  const { id } = await c.req.json();
+
+  const response = await invitations.declineInvitationService({
+    organizationId: user.organizationId,
+    invitationId: id,
+  });
+
+  if (response.error) {
+    return badRequestError(c, response.error);
+  }
+
+  if (response.serverError) {
+    return serverError(c, response.serverError);
+  }
+  return c.json(response, 200);
+};
+
 export {
   acceptInvitationController,
+  declineInvitationController,
   invitationController,
   listInvitationsController,
 };

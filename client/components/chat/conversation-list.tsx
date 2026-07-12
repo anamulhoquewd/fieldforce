@@ -105,13 +105,13 @@ export function ConversationList({
         )}
 
         {filtered.map((conv) => {
-          const isSelected = selectedId === conv.id
+          const isSelected = selectedId === conv.userId
           const color = colorFor(conv.name)
 
           return (
             <button
               key={conv.id}
-              onClick={() => onSelect(conv.id)}
+              onClick={() => onSelect(conv.userId)}
               className={cn(
                 "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50",
                 isSelected &&

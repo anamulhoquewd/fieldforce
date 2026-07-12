@@ -2,9 +2,13 @@ import { db } from "@/db/index.js";
 import { invitations, memberships, users } from "@/db/schema.js";
 import { schemaValidationError } from "@/errors/index.js";
 import { generateToken, passwordHashingHelper } from "@/lib/auth.js";
+import { sendInvitationEmail } from "@/lib/email.js";
 import { createSession } from "@/lib/session.js";
+import dotenv from "dotenv";
 import { eq } from "drizzle-orm";
 import z from "zod";
+
+dotenv.config();
 
 const zInvitation = z.object({
   organizationId: z.string(),
@@ -32,15 +36,42 @@ const createInvitationService = async (body: TInvitation) => {
       .values({ organizationId, email, token, role, status: "pending" } as any)
       .returning();
 
+    // Generate the join URL
+    const inviteLink = `${process.env.CLIENT_ORIGIN}/join?token=${token}`;
+
+    // Look up the organization name to personalize the email
+    const organization = await db.query.organizations.findFirst({
+      where: (org, { eq }) => eq(org.id, organizationId),
+    });
+
+    // Send the invitation email (best-effort: the invite still stands and the
+    // link is returned so the manager can share it manually if delivery fails)
+    let emailSent = false;
+    try {
+      await sendInvitationEmail({
+        to: email,
+        inviteLink,
+        role,
+        organizationName: organization?.name,
+      });
+      emailSent = true;
+    } catch (mailError: any) {
+      console.error("Failed to send invitation email:", mailError?.message);
+    }
+
     return {
       success: true,
-      message: "Invitation created",
+      message: emailSent
+        ? "Invitation created and email sent"
+        : "Invitation created (email could not be sent)",
       data: {
         invitation,
-        inviteLink: `${process.env.CLIENT_ORIGIN}/join?token=${token}`,
+        inviteLink,
+        emailSent,
       },
     };
   } catch (error: any) {
+    console.log("Error: ", error);
     return {
       serverError: {
         success: false,
@@ -181,4 +212,65 @@ const fetchInvitations = async ({
   }
 };
 
-export { acceptInvitationService, createInvitationService, fetchInvitations };
+const declineInvitationService = async ({
+  organizationId,
+  invitationId,
+}: {
+  organizationId: string;
+  invitationId: string;
+}) => {
+  if (!organizationId || !invitationId)
+    return {
+      error: {
+        message: "Organization id and invitation id are required",
+      },
+    };
+
+  try {
+    const invite = await db.query.invitations.findFirst({
+      where: (inv, { eq, and }) =>
+        and(eq(inv.id, invitationId), eq(inv.organizationId, organizationId)),
+    });
+
+    if (!invite) {
+      return {
+        error: {
+          message: "Invitation not found",
+        },
+      };
+    }
+
+    if (invite.status !== "pending") {
+      return {
+        error: {
+          message: `Invitation already ${invite.status}`,
+        },
+      };
+    }
+
+    await db
+      .update(invitations)
+      .set({ status: "declined" })
+      .where(eq(invitations.id, invitationId));
+
+    return {
+      success: true,
+      message: "Invitation declined",
+    };
+  } catch (error: any) {
+    return {
+      serverError: {
+        success: false,
+        message: error.message,
+        stack: process.env.NODE_ENV === "production" ? null : error.stack,
+      },
+    };
+  }
+};
+
+export {
+  acceptInvitationService,
+  createInvitationService,
+  declineInvitationService,
+  fetchInvitations,
+};
